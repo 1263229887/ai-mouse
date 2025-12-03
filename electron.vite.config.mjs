@@ -16,5 +16,7 @@ export default defineConfig({
       }
     },
     plugins: [vue()]
+    // 单页面应用，无需配置多入口
+    // 通过 Vue Router + URL hash 实现页面切换
   }
 })
