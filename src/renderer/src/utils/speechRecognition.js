@@ -3,7 +3,21 @@
  * 基于 FunASR 实时语音识别服务
  */
 
-import AudioRecorder from './audioRecorder.js'
+import RecorderCore from './recorder.js'
+
+// 获取日志器
+const getLogger = () => {
+  if (window.api && window.api.logger) {
+    return window.api.logger
+  }
+  // 回退到 console
+  return {
+    info: (source, message, data) => console.log(`[${source}] ${message}`, data),
+    debug: (source, message, data) => console.log(`[${source}] ${message}`, data),
+    warn: (source, message, data) => console.warn(`[${source}] ${message}`, data),
+    error: (source, message, data) => console.error(`[${source}] ${message}`, data)
+  }
+}
 
 class SpeechRecognition {
   constructor() {
@@ -13,12 +27,38 @@ class SpeechRecognition {
     this.onTextCallback = null
     this.onErrorCallback = null
     this.onStateChangeCallback = null
+    this.onStatusDetailCallback = null // 新增：详细状态回调
 
     // 录音相关
     this.recorder = null
     this.isRecording = false
     this.sampleBuffer = new Int16Array(0) // 音频数据缓冲区
     this.chunkSize = 1920 // 每次发送的数据大小 (120ms @ 16kHz)
+    
+    // 状态跟踪
+    this.statusDetail = {
+      recorderSupported: false,
+      recorderOpened: false,
+      recorderStarted: false,
+      wsConnecting: false,
+      wsConnected: false,
+      wsSentInitConfig: false,
+      audioChunksSent: 0,
+      lastError: null
+    }
+    
+    const logger = getLogger()
+    logger.info('SpeechRecognition', '实例已创建')
+  }
+
+  /**
+   * 更新状态详情并通知回调
+   */
+  updateStatus(key, value) {
+    this.statusDetail[key] = value
+    this.onStatusDetailCallback?.(this.statusDetail)
+    const logger = getLogger()
+    logger.debug('SpeechRecognition', `状态更新: ${key}`, value)
   }
 
   /**
@@ -27,32 +67,60 @@ class SpeechRecognition {
    * @param {object} options - 配置选项
    */
   async connect(wsUrl, options = {}) {
+    const logger = getLogger()
+    logger.info('SpeechRecognition', '开始连接', { wsUrl, options })
+    
     try {
+      // 检查浏览器支持
+      const isSupported = RecorderCore.Support()
+      this.updateStatus('recorderSupported', isSupported)
+      
+      if (!isSupported) {
+        const error = new Error('浏览器不支持录音')
+        this.updateStatus('lastError', error.message)
+        throw error
+      }
+      logger.info('SpeechRecognition', '浏览器支持录音检查通过')
+
       // 初始化录音器
-      this.recorder = new AudioRecorder({ sampleRate: 16000 })
-
-      // 设置录音数据处理回调
-      this.recorder.onProcess((pcmData, powerLevel) => {
-        this.handleAudioData(pcmData, powerLevel)
-      })
-
-      this.recorder.onError((error) => {
-        console.error('录音错误:', error)
-        this.onErrorCallback?.(error)
+      this.recorder = new RecorderCore({
+        type: 'pcm',
+        bitRate: 16,
+        sampleRate: 16000,
+        onProcess: (buffers, powerLevel, bufferDuration, bufferSampleRate, newBufferIdx, asyncEnd, resampledData) => {
+          // 使用重采样后的数据
+          if (resampledData && resampledData.length > 0) {
+            this.handleAudioData(resampledData, powerLevel)
+          }
+        }
       })
 
       // 打开麦克风
+      logger.info('SpeechRecognition', '正在打开麦克风...')
       await this.recorder.open()
+      this.updateStatus('recorderOpened', true)
+      logger.info('SpeechRecognition', '麦克风已打开')
 
       // 连接 WebSocket
+      logger.info('SpeechRecognition', '正在连接 WebSocket...', { wsUrl })
+      this.updateStatus('wsConnecting', true)
       await this.connectWebSocket(wsUrl, options)
+      this.updateStatus('wsConnecting', false)
+      this.updateStatus('wsConnected', true)
+      logger.info('SpeechRecognition', 'WebSocket 已连接')
 
       // 开始录音
       this.startRecording()
-
-      console.log('语音识别已启动')
+      this.updateStatus('recorderStarted', true)
+      logger.info('SpeechRecognition', '语音识别已启动')
     } catch (error) {
-      console.error('启动语音识别失败:', error)
+      const logger = getLogger()
+      logger.error('SpeechRecognition', '启动失败', { 
+        message: error.message, 
+        stack: error.stack,
+        status: this.statusDetail 
+      })
+      this.updateStatus('lastError', error.message)
       this.onErrorCallback?.(error)
       throw error
     }
@@ -62,12 +130,43 @@ class SpeechRecognition {
    * 连接 WebSocket
    */
   connectWebSocket(wsUrl, options = {}) {
+    const logger = getLogger()
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(wsUrl)
+        logger.info('SpeechRecognition', '创建 WebSocket 连接', { wsUrl })
+        
+        // 验证 URL 格式
+        if (!wsUrl || (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://'))) {
+          const error = new Error(`无效的 WebSocket URL: ${wsUrl}`)
+          logger.error('SpeechRecognition', 'URL 格式错误', { wsUrl })
+          reject(error)
+          return
+        }
+        
+        // 开发环境下使用vite代理
+        let actualWsUrl = wsUrl
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // 将 ws://192.168.80.224:3002/v2/asr 转换为 ws://localhost:5173/ws-asr
+          const port = window.location.port || '5173'
+          actualWsUrl = `ws://${window.location.hostname}:${port}/ws-asr`
+          logger.info('SpeechRecognition', '开发环境使用代理', { originalUrl: wsUrl, proxyUrl: actualWsUrl })
+        }
+        
+        // 设置超时
+        const timeout = setTimeout(() => {
+          const error = new Error('WebSocket 连接超时 (10秒)')
+          logger.error('SpeechRecognition', 'WebSocket 连接超时')
+          this.updateStatus('lastError', error.message)
+          reject(error)
+        }, 10000)
+        
+        logger.info('SpeechRecognition', '正在创建 WebSocket 对象...', { actualWsUrl })
+        this.ws = new WebSocket(actualWsUrl)
+        logger.info('SpeechRecognition', 'WebSocket 对象已创建', { readyState: this.ws.readyState })
 
         this.ws.onopen = () => {
-          console.log('WebSocket 连接成功')
+          clearTimeout(timeout)
+          logger.info('SpeechRecognition', 'WebSocket 连接成功')
           this.isConnected = true
 
           // 发送初始化配置
@@ -78,12 +177,22 @@ class SpeechRecognition {
             chunk_interval: 10,
             mode: options.mode || '2pass',
             language_id: options.language || 'ZH',
-            max_end_silence_time: 500,
             is_denoiser: options.denoiser || false,
+            originalCode: options.originalCode || 'ZH',
+            sourceLanguage: options.sourceLanguage || 'EN',
+            targetLanguage: options.targetLanguage || 'EN',
+            openTranslate: options.openTranslate ?? true,
+            openTts: options.openTts ?? true,
+            timbre: options.timbre || '1',
+            conversationId: options.conversationId || '1111',
+            is_use_timestamp_model: options.is_use_timestamp_model || false,
+            stopInterval: options.stopInterval || '1500',
             ...options.extraParams
           }
 
+          logger.info('SpeechRecognition', '发送初始化配置', config)
           this.ws.send(JSON.stringify(config))
+          this.updateStatus('wsSentInitConfig', true)
           this.onStateChangeCallback?.(0) // 连接成功
           resolve()
         }
@@ -93,20 +202,38 @@ class SpeechRecognition {
         }
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket 错误:', error)
+          clearTimeout(timeout)
+          // 尝试获取更详细的错误信息
+          const errorInfo = {
+            type: error.type,
+            message: error.message || 'Unknown WebSocket error',
+            wsUrl,
+            readyState: this.ws?.readyState,
+            readyStateText: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][this.ws?.readyState] || 'UNKNOWN'
+          }
+          logger.error('SpeechRecognition', 'WebSocket 错误', errorInfo)
           this.isConnected = false
+          this.updateStatus('wsConnected', false)
+          this.updateStatus('lastError', `WebSocket 错误: ${errorInfo.readyStateText}`)
           this.onStateChangeCallback?.(2) // 连接错误
-          this.onErrorCallback?.(error)
-          reject(error)
+          this.onErrorCallback?.(new Error(`WebSocket 连接失败: ${errorInfo.readyStateText}`))
+          reject(new Error(`WebSocket 连接失败: ${errorInfo.readyStateText}`))
         }
 
-        this.ws.onclose = () => {
-          console.log('WebSocket 连接关闭')
+        this.ws.onclose = (event) => {
+          clearTimeout(timeout)
+          logger.info('SpeechRecognition', 'WebSocket 连接关闭', { 
+            code: event.code, 
+            reason: event.reason,
+            wasClean: event.wasClean
+          })
           this.isConnected = false
+          this.updateStatus('wsConnected', false)
           this.onStateChangeCallback?.(1) // 连接关闭
         }
       } catch (error) {
-        console.error('连接失败:', error)
+        logger.error('SpeechRecognition', '连接失败', { message: error.message })
+        this.updateStatus('lastError', error.message)
         reject(error)
       }
     })
@@ -116,10 +243,13 @@ class SpeechRecognition {
    * 开始录音
    */
   startRecording() {
+    const logger = getLogger()
     if (this.recorder && !this.isRecording) {
+      logger.info('SpeechRecognition', '开始录音')
       this.isRecording = true
       this.sampleBuffer = new Int16Array(0)
       this.recorder.start()
+      this.updateStatus('recorderStarted', true)
     }
   }
 
@@ -127,7 +257,9 @@ class SpeechRecognition {
    * 处理录音数据
    */
   handleAudioData(pcmData, powerLevel) {
-    if (!this.isRecording || !this.isConnected) return
+    if (!this.isRecording || !this.isConnected) {
+      return
+    }
 
     // 缓冲音频数据
     const newBuffer = new Int16Array(this.sampleBuffer.length + pcmData.length)
@@ -140,6 +272,8 @@ class SpeechRecognition {
       const sendBuffer = this.sampleBuffer.slice(0, this.chunkSize)
       this.sampleBuffer = this.sampleBuffer.slice(this.chunkSize)
       this.sendAudio(sendBuffer)
+      // 更新发送统计
+      this.statusDetail.audioChunksSent++
     }
   }
 
@@ -148,13 +282,31 @@ class SpeechRecognition {
    * @param {MessageEvent} event - WebSocket 消息事件
    */
   handleMessage(event) {
+    const logger = getLogger()
     try {
       const data = JSON.parse(event.data)
-      const { id, text, is_final, mode, end } = data
+      const { id, text, is_final, mode, end, channel } = data
 
-      console.log('收到消息:', data)
+      logger.debug('SpeechRecognition', '收到消息', data)
 
-      // 根据 id 处理消息
+      // 检查是否是服务端的结束消息（is_final: true）
+      if (is_final === true) {
+        logger.info('SpeechRecognition', '收到服务端结束消息', data)
+        // 合并所有消息
+        const fullText = Array.from(this.messageMap.values()).join('')
+        // 回调传递完整文本和is_final标志
+        this.onTextCallback?.(fullText, {
+          id,
+          text: fullText,
+          is_final: true,
+          mode,
+          end,
+          channel
+        })
+        return
+      }
+
+      // 根据 id 处理普通识别消息
       if (id !== undefined) {
         if (this.messageMap.has(id)) {
           // id 相同，替换文本
@@ -177,7 +329,8 @@ class SpeechRecognition {
         })
       }
     } catch (error) {
-      console.error('解析消息失败:', error)
+      const logger = getLogger()
+      logger.error('SpeechRecognition', '解析消息失败', { message: error.message })
       this.onErrorCallback?.(error)
     }
   }
@@ -190,7 +343,12 @@ class SpeechRecognition {
     if (this.ws && this.isConnected && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(audioData)
     } else {
-      console.warn('WebSocket 未连接，无法发送音频数据')
+      const logger = getLogger()
+      logger.warn('SpeechRecognition', 'WebSocket 未连接，无法发送音频数据', {
+        wsExists: !!this.ws,
+        isConnected: this.isConnected,
+        readyState: this.ws?.readyState
+      })
     }
   }
 
@@ -198,14 +356,23 @@ class SpeechRecognition {
    * 停止录音并发送结束消息
    */
   stop() {
+    const logger = getLogger()
+    logger.info('SpeechRecognition', '停止录音')
+    
     // 停止录音
     if (this.recorder && this.isRecording) {
       this.isRecording = false
-      this.recorder.stop()
+      this.updateStatus('recorderStarted', false)
+      this.recorder.stop(() => {
+        logger.info('SpeechRecognition', '录音已停止')
+      }, (err) => {
+        logger.error('SpeechRecognition', '停止录音失败', { message: err?.message })
+      })
     }
 
     // 发送剩余的音频数据
     if (this.sampleBuffer.length > 0 && this.isConnected) {
+      logger.info('SpeechRecognition', '发送剩余音频数据', { length: this.sampleBuffer.length })
       this.sendAudio(this.sampleBuffer)
       this.sampleBuffer = new Int16Array(0)
     }
@@ -217,10 +384,11 @@ class SpeechRecognition {
         wav_name: 'h5',
         is_speaking: false,
         chunk_interval: 30,
+        mode: '2pass',
         max_end_silence_time: 500
       }
+      logger.info('SpeechRecognition', '发送停止消息', stopMessage)
       this.ws.send(JSON.stringify(stopMessage))
-      console.log('已发送停止消息')
     }
   }
 
@@ -228,6 +396,9 @@ class SpeechRecognition {
    * 关闭连接并释放资源
    */
   close() {
+    const logger = getLogger()
+    logger.info('SpeechRecognition', '关闭连接并释放资源')
+    
     // 停止录音
     if (this.recorder) {
       this.recorder.close()
@@ -245,6 +416,20 @@ class SpeechRecognition {
 
     // 清空消息缓存
     this.messageMap.clear()
+    
+    // 重置状态
+    this.statusDetail = {
+      recorderSupported: false,
+      recorderOpened: false,
+      recorderStarted: false,
+      wsConnecting: false,
+      wsConnected: false,
+      wsSentInitConfig: false,
+      audioChunksSent: 0,
+      lastError: null
+    }
+    
+    logger.info('SpeechRecognition', '资源已释放')
   }
 
   /**
@@ -277,6 +462,20 @@ class SpeechRecognition {
    */
   onStateChange(callback) {
     this.onStateChangeCallback = callback
+  }
+  /**
+   * 设置详细状态回调
+   * @param {Function} callback - 回调函数 (statusDetail) => {}
+   */
+  onStatusDetail(callback) {
+    this.onStatusDetailCallback = callback
+  }
+
+  /**
+   * 获取当前状态详情
+   */
+  getStatusDetail() {
+    return this.statusDetail
   }
 }
 

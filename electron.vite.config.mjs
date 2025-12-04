@@ -15,8 +15,19 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [vue()]
+    plugins: [vue()],
     // 单页面应用，无需配置多入口
     // 通过 Vue Router + URL hash 实现页面切换
+    server: {
+      // WebSocket 代理配置
+      proxy: {
+        '/ws-asr': {
+          target: 'ws://192.168.80.224:3002',
+          ws: true,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ws-asr/, '/v2/asr')
+        }
+      }
+    }
   }
 })

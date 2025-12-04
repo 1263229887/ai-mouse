@@ -2,8 +2,9 @@ import { app, shell, BrowserWindow, ipcMain, globalShortcut, clipboard, screen }
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec } from 'child_process'
-import { uIOhook, UiohookKey } from 'uiohook-napi'
+
 import icon from '../renderer/src/assets/icon_av.png?asset'
+import logger from './logger.js'
 
 // ==================== 窗口引用 ====================
 // 主窗口引用
@@ -11,13 +12,7 @@ let mainWindow = null
 // 弹窗窗口引用（用于打字机效果和翻译效果）
 let popupWindow = null
 
-// ==================== 鼠标中键监听 ====================
-// 鼠标中键按下时间
-let middleButtonDownTime = null
-// 鼠标中键长按检测定时器
-let middleButtonTimer = null
-// 中键长按阈值（毫秒）
-const MIDDLE_BUTTON_HOLD_DURATION = 2000
+
 
 function createWindow() {
   // 创建主窗口
@@ -69,18 +64,20 @@ function createPopupWindow(route = '/typing', options = {}) {
   // 根据路由设置不同的窗口尺寸
   const isTranslate = route === '/translate'
   const windowWidth = isTranslate ? 460 : 420
-  const windowHeight = isTranslate ? 220 : 140  // 翻译窗口高度增加
+  const initialHeight = isTranslate ? 280 : 240  // 初始高度增大，会动态调整
   const margin = 20
+  // 计算最大窗口高度（屏幕可视高度的一半）
+  const maxWindowHeight = Math.floor(screenHeight / 2)
   // 翻译窗口往上移动一点，避免被任务栏遮挡
   const bottomOffset = isTranslate ? 40 : 0
 
   // 创建弹窗窗口
   popupWindow = new BrowserWindow({
     width: windowWidth,
-    height: windowHeight,
+    height: initialHeight,
     // 定位到右下角（翻译窗口稍微上移）
     x: screenWidth - windowWidth - margin,
-    y: screenHeight - windowHeight - margin - bottomOffset,
+    y: screenHeight - initialHeight - margin - bottomOffset,
     // 无边框窗口
     frame: false,
     // 透明背景
@@ -97,7 +94,11 @@ function createPopupWindow(route = '/typing', options = {}) {
     focusable: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // 允许跨域 WebSocket 连接
+      webSecurity: false,
+      // 允许运行不安全内容
+      allowRunningInsecureContent: true
     },
     ...options
   })
@@ -118,12 +119,35 @@ function createPopupWindow(route = '/typing', options = {}) {
   popupWindow.on('closed', () => {
     popupWindow = null
   })
+  
+  // 保存窗口配置信息用于动态调整
+  popupWindow.windowConfig = {
+    margin,
+    bottomOffset,
+    maxHeight: maxWindowHeight,
+    screenHeight
+  }
 }
+
+// 允许不安全的WebSocket连接（开发环境）
+app.commandLine.appendSwitch('ignore-certificate-errors')
+app.commandLine.appendSwitch('allow-insecure-localhost')
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // 初始化日志系统
+  const logPath = logger.init()
+  logger.info('Main', '应用启动')
+  logger.info('Main', '日志文件路径', logPath)
+  
+  // 忽略证书错误（允许ws://连接）
+  const { session } = require('electron')
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    callback(0) // 0 表示成功
+  })
+  
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -137,6 +161,21 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
+  // ==================== 渲染进程日志处理 ====================
+  /**
+   * 接收渲染进程发送的日志，写入文件
+   */
+  ipcMain.on('log-to-file', (event, { level, source, message, data }) => {
+    logger.fromRenderer(level, source, message, data)
+  })
+  
+  /**
+   * 获取日志文件路径
+   */
+  ipcMain.handle('get-log-path', () => {
+    return logger.getLogPath()
+  })
+
   // ==================== 点击卡片触发AI输入 ====================
   /**
    * 监听渲染进程点击卡片事件
@@ -144,6 +183,35 @@ app.whenReady().then(() => {
    */
   ipcMain.on('start-ai-input', () => {
     createPopupWindow('/typing')
+  })
+  
+  // ==================== 动态调整窗口高度 ====================
+  /**
+   * 根据内容高度动态调整弹窗高度
+   * 窗口底部位置保持不变，向上扩展
+   */
+  ipcMain.on('adjust-window-height', (event, { contentHeight }) => {
+    if (!popupWindow || popupWindow.isDestroyed()) return
+    
+    const config = popupWindow.windowConfig
+    if (!config) return
+    
+    // 计算新高度，不超过最大高度
+    const newHeight = Math.min(contentHeight, config.maxHeight)
+    const currentBounds = popupWindow.getBounds()
+    
+    // 保持底部位置不变，调整顶部位置
+    const bottomY = currentBounds.y + currentBounds.height
+    const newY = bottomY - newHeight
+    
+    popupWindow.setBounds({
+      x: currentBounds.x,
+      y: newY,
+      width: currentBounds.width,
+      height: newHeight
+    })
+    
+    logger.debug('Main', '调整窗口高度', { contentHeight, newHeight, newY })
   })
 
   // ==================== 点击卡片触发AI翻译 ====================
@@ -183,65 +251,131 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // 注册全局快捷键
-  const mainWindow = BrowserWindow.getAllWindows()[0]
-
   // Ctrl+Shift+Y: 启动语音识别（连接 WebSocket + 开始录音）
   globalShortcut.register('Ctrl+Shift+Y', () => {
-    // 通知渲染进程（可选，用于界面反馈）
-    mainWindow.webContents.send('trigger-ai-input')
+    logger.info('Main', '快捷键 Ctrl+Shift+Y 被按下')
+    
+    // 通知主窗口（如果存在）
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('trigger-ai-input')
+    }
+    
     // 创建打字机窗口，传递 WebSocket 地址
     createPopupWindow('/typing')
 
-    // 窗口加载完成后发送 WebSocket 地址
+    // 使用延时确保窗口加载完成后发送消息
+    const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
+    logger.info('Main', 'WebSocket 地址', wsUrl)
+    
     if (popupWindow) {
+      // 先尝试等待加载完成
+      const sendMessage = () => {
+        if (popupWindow && !popupWindow.isDestroyed()) {
+          logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl })
+          popupWindow.webContents.send('start-speech-recognition', { wsUrl })
+        }
+      }
+      
+      // 监听加载完成事件
       popupWindow.webContents.once('did-finish-load', () => {
-        const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
-        popupWindow.webContents.send('start-speech-recognition', { wsUrl })
+        logger.info('Main', 'popupWindow 加载完成')
+        sendMessage()
       })
+      
+      // 如果窗口已经加载完成，延时后也发送一次
+      setTimeout(() => {
+        if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
+          logger.info('Main', 'popupWindow 延时发送消息')
+          sendMessage()
+        }
+      }, 500)
     }
   })
 
   // Ctrl+Shift+U: 模拟AI翻译
   globalShortcut.register('Ctrl+Shift+U', () => {
-    mainWindow.webContents.send('trigger-ai-translate')
+    logger.info('Main', '快捷键 Ctrl+Shift+U 被按下')
+    
+    // 通知主窗口（如果存在）
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('trigger-ai-translate')
+    }
+    
     // 创建翻译窗口
     createPopupWindow('/translate')
   })
 
-  // ==================== 鼠标中键事件监听 ====================
-  // 监听鼠标中键按下
-  uIOhook.on('mousedown', (e) => {
-    // 鼠标中键 = button 2 (1=左键, 2=中键, 3=右键)
-    if (e.button === 2) {
-      middleButtonDownTime = Date.now()
-
-      // 设置定时器检测长按
-      middleButtonTimer = setTimeout(() => {
-        console.log('鼠标中键长按 2 秒，触发停止录音')
-        // 发送停止录音消息给弹窗
-        if (popupWindow && !popupWindow.isDestroyed()) {
-          popupWindow.webContents.send('stop-speech-recognition')
-        }
-      }, MIDDLE_BUTTON_HOLD_DURATION)
+  // Ctrl+Shift+L: 打开日志文件夹
+  globalShortcut.register('Ctrl+Shift+L', () => {
+    const logDir = logger.getLogDir()
+    logger.info('Main', '快捷键 Ctrl+Shift+L 被按下，打开日志文件夹', logDir)
+    if (logDir) {
+      shell.openPath(logDir)
     }
   })
 
-  // 监听鼠标中键释放
-  uIOhook.on('mouseup', (e) => {
-    if (e.button === 2) {
-      // 清除定时器
-      if (middleButtonTimer) {
-        clearTimeout(middleButtonTimer)
-        middleButtonTimer = null
+  // Ctrl+Shift+T: 打开 Demo 测试窗口（用于测试 WebSocket 连接）
+  globalShortcut.register('Ctrl+Shift+T', () => {
+    logger.info('Main', '快捷键 Ctrl+Shift+T 被按下，打开 Demo 测试窗口')
+    
+    // 创建测试窗口
+    const testWindow = new BrowserWindow({
+      width: 800,
+      height: 600,
+      title: 'WebSocket Demo 测试',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
       }
-      middleButtonDownTime = null
+    })
+    
+    // 加载 demo 页面
+    const demoPath = join(__dirname, '../demo/static/index.html')
+    logger.info('Main', '加载 Demo 页面', demoPath)
+    testWindow.loadFile(demoPath)
+    
+    // 打开开发者工具方便调试
+    testWindow.webContents.openDevTools()
+  })
+
+  // Ctrl+Shift+D: 打印调试日志
+  globalShortcut.register('Ctrl+Shift+D', () => {
+    const debugInfo = {
+      mainWindowExists: mainWindow !== null && !mainWindow?.isDestroyed(),
+      popupWindowExists: popupWindow !== null && !popupWindow?.isDestroyed(),
+      allWindowsCount: BrowserWindow.getAllWindows().length,
+      popupIsLoading: popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.isLoading() : 'N/A',
+      popupURL: popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.getURL() : 'N/A',
+      logPath: logger.getLogPath()
+    }
+    
+    logger.info('Main', '========== 调试信息 ==========')
+    logger.info('Main', '主窗口存在', debugInfo.mainWindowExists)
+    logger.info('Main', '弹窗存在', debugInfo.popupWindowExists)
+    logger.info('Main', '所有窗口数量', debugInfo.allWindowsCount)
+    logger.info('Main', '弹窗加载中', debugInfo.popupIsLoading)
+    logger.info('Main', '弹窗URL', debugInfo.popupURL)
+    logger.info('Main', '日志文件路径', debugInfo.logPath)
+    logger.info('Main', '================================')
+    
+    // 也发送到渲染进程显示，包含日志路径
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.webContents.send('debug-log', { 
+        message: '调试日志已写入文件',
+        logPath: debugInfo.logPath
+      })
     }
   })
 
-  // 启动鼠标事件监听
-  uIOhook.start()
-  console.log('鼠标事件监听已启动')
+  // Ctrl+Shift+F: 停止语音识别
+  globalShortcut.register('Ctrl+Shift+F', () => {
+    logger.info('Main', '快捷键 Ctrl+Shift+F 被按下，停止录音')
+    
+    // 发送停止录音消息给弹窗
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.webContents.send('stop-speech-recognition')
+    }
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -262,9 +396,7 @@ app.on('window-all-closed', () => {
 // 应用退出时注销所有快捷键和清理资源
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
-  // 停止鼠标事件监听
-  uIOhook.stop()
-  console.log('应用退出，已清理资源')
+  logger.info('Main', '应用退出，已清理资源')
 })
 
 // ==================== 模拟粘贴操作 ====================
