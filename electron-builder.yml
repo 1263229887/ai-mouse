@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: ai-mouse
+appId: com.danaid.aimouse
+productName: DanaID AI鼠标模拟器
 directories:
   buildResources: build
 files:
@@ -12,6 +12,7 @@ asarUnpack:
   - resources/**
 win:
   executableName: ai-mouse
+  icon: build/icon.png
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

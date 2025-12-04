@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, globalShortcut, clipboard, screen }
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec } from 'child_process'
-import icon from '../../resources/icon.png?asset'
+import icon from '../renderer/src/assets/icon_av.png?asset'
 
 // ==================== 窗口引用 ====================
 // 主窗口引用
@@ -17,7 +17,7 @@ function createWindow() {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
