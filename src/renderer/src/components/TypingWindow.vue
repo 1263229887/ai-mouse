@@ -32,22 +32,26 @@ const displayedText = ref('')
 // 是否完成打字
 const isComplete = ref(false)
 // 连接状态
-const connectionStatus = ref('正在连接...')
+const connectionStatus = ref('等待启动...')
 // 语音识别实例
 let speechRecognizer = null
+// IPC 监听器引用
+let removeStartListener = null
+let removeStopListener = null
 
 // ==================== 配置项 ====================
-// WebSocket 服务器地址（默认值，可以通过 props 传入）
-const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
 // 打字完成后等待关闭的时间（毫秒）
 const closeDelay = 800
 
 // ==================== 语音识别功能 ====================
 /**
  * 初始化语音识别
+ * @param {string} wsUrl - WebSocket 服务器地址
  */
-const initSpeechRecognition = async () => {
+const initSpeechRecognition = async (wsUrl) => {
   try {
+    connectionStatus.value = '正在连接...'
+
     // 创建语音识别实例
     speechRecognizer = new SpeechRecognition()
 
@@ -55,11 +59,6 @@ const initSpeechRecognition = async () => {
     speechRecognizer.onText((fullText, messageInfo) => {
       displayedText.value = fullText
       console.log('识别文本:', fullText, '消息信息:', messageInfo)
-
-      // 如果识别结束，标记为完成
-      if (messageInfo.end || messageInfo.is_final) {
-        handleRecognitionComplete(fullText)
-      }
     })
 
     // 设置错误回调
@@ -71,7 +70,7 @@ const initSpeechRecognition = async () => {
     // 设置状态变化回调
     speechRecognizer.onStateChange((state) => {
       if (state === 0) {
-        connectionStatus.value = '已连接，正在识别...'
+        connectionStatus.value = '录音中，鼠标中键长按2秒停止'
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {
@@ -79,14 +78,14 @@ const initSpeechRecognition = async () => {
       }
     })
 
-    // 连接到 WebSocket 服务器
+    // 连接到 WebSocket 服务器并开始录音
     await speechRecognizer.connect(wsUrl, {
       mode: '2pass',
       language: 'ZH',
       denoiser: false
     })
 
-    console.log('语音识别初始化成功')
+    console.log('语音识别初始化成功, wsUrl:', wsUrl)
   } catch (error) {
     console.error('初始化语音识别失败:', error)
     connectionStatus.value = '初始化失败'
@@ -94,16 +93,35 @@ const initSpeechRecognition = async () => {
 }
 
 /**
+ * 停止录音并处理结果
+ */
+const stopRecording = () => {
+  if (!speechRecognizer) return
+
+  console.log('停止录音')
+  connectionStatus.value = '正在处理识别结果...'
+
+  // 停止录音并发送结束消息
+  speechRecognizer.stop()
+
+  // 等待一下让服务器处理完成
+  setTimeout(() => {
+    handleRecognitionComplete(displayedText.value)
+  }, 1500)
+}
+
+/**
  * 处理识别完成
  */
 const handleRecognitionComplete = (finalText) => {
   isComplete.value = true
-  
+  connectionStatus.value = '识别完成'
+
   // 延迟后通知主进程完成
   setTimeout(() => {
     // 通过 IPC 通知主进程打字完成，可以执行粘贴操作
     window.electron.ipcRenderer.send('typing-complete', finalText)
-    
+
     // 关闭语音识别连接
     if (speechRecognizer) {
       speechRecognizer.close()
@@ -113,11 +131,30 @@ const handleRecognitionComplete = (finalText) => {
 
 // ==================== 生命周期钩子 ====================
 onMounted(() => {
-  // 组件挂载后初始化语音识别
-  initSpeechRecognition()
+  // 监听主进程发送的启动语音识别消息
+  removeStartListener = window.electron.ipcRenderer.on('start-speech-recognition', (event, data) => {
+    console.log('收到启动语音识别消息:', data)
+    if (data && data.wsUrl) {
+      initSpeechRecognition(data.wsUrl)
+    }
+  })
+
+  // 监听主进程发送的停止语音识别消息
+  removeStopListener = window.electron.ipcRenderer.on('stop-speech-recognition', () => {
+    console.log('收到停止语音识别消息')
+    stopRecording()
+  })
 })
 
 onUnmounted(() => {
+  // 移除 IPC 监听器
+  if (removeStartListener) {
+    removeStartListener()
+  }
+  if (removeStopListener) {
+    removeStopListener()
+  }
+
   // 组件卸载时关闭连接
   if (speechRecognizer) {
     speechRecognizer.close()

@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, globalShortcut, clipboard, screen }
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec } from 'child_process'
+import { uIOhook, UiohookKey } from 'uiohook-napi'
 import icon from '../renderer/src/assets/icon_av.png?asset'
 
 // ==================== 窗口引用 ====================
@@ -9,6 +10,14 @@ import icon from '../renderer/src/assets/icon_av.png?asset'
 let mainWindow = null
 // 弹窗窗口引用（用于打字机效果和翻译效果）
 let popupWindow = null
+
+// ==================== 鼠标中键监听 ====================
+// 鼠标中键按下时间
+let middleButtonDownTime = null
+// 鼠标中键长按检测定时器
+let middleButtonTimer = null
+// 中键长按阈值（毫秒）
+const MIDDLE_BUTTON_HOLD_DURATION = 2000
 
 function createWindow() {
   // 创建主窗口
@@ -177,12 +186,20 @@ app.whenReady().then(() => {
   // 注册全局快捷键
   const mainWindow = BrowserWindow.getAllWindows()[0]
 
-  // Ctrl+Shift+Y: 模拟AI输入
+  // Ctrl+Shift+Y: 启动语音识别（连接 WebSocket + 开始录音）
   globalShortcut.register('Ctrl+Shift+Y', () => {
     // 通知渲染进程（可选，用于界面反馈）
     mainWindow.webContents.send('trigger-ai-input')
-    // 创建打字机窗口
+    // 创建打字机窗口，传递 WebSocket 地址
     createPopupWindow('/typing')
+
+    // 窗口加载完成后发送 WebSocket 地址
+    if (popupWindow) {
+      popupWindow.webContents.once('did-finish-load', () => {
+        const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
+        popupWindow.webContents.send('start-speech-recognition', { wsUrl })
+      })
+    }
   })
 
   // Ctrl+Shift+U: 模拟AI翻译
@@ -191,6 +208,40 @@ app.whenReady().then(() => {
     // 创建翻译窗口
     createPopupWindow('/translate')
   })
+
+  // ==================== 鼠标中键事件监听 ====================
+  // 监听鼠标中键按下
+  uIOhook.on('mousedown', (e) => {
+    // 鼠标中键 = button 2 (1=左键, 2=中键, 3=右键)
+    if (e.button === 2) {
+      middleButtonDownTime = Date.now()
+
+      // 设置定时器检测长按
+      middleButtonTimer = setTimeout(() => {
+        console.log('鼠标中键长按 2 秒，触发停止录音')
+        // 发送停止录音消息给弹窗
+        if (popupWindow && !popupWindow.isDestroyed()) {
+          popupWindow.webContents.send('stop-speech-recognition')
+        }
+      }, MIDDLE_BUTTON_HOLD_DURATION)
+    }
+  })
+
+  // 监听鼠标中键释放
+  uIOhook.on('mouseup', (e) => {
+    if (e.button === 2) {
+      // 清除定时器
+      if (middleButtonTimer) {
+        clearTimeout(middleButtonTimer)
+        middleButtonTimer = null
+      }
+      middleButtonDownTime = null
+    }
+  })
+
+  // 启动鼠标事件监听
+  uIOhook.start()
+  console.log('鼠标事件监听已启动')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -208,9 +259,12 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 应用退出时注销所有快捷键
+// 应用退出时注销所有快捷键和清理资源
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  // 停止鼠标事件监听
+  uIOhook.stop()
+  console.log('应用退出，已清理资源')
 })
 
 // ==================== 模拟粘贴操作 ====================
