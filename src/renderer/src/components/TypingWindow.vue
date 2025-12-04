@@ -1,68 +1,128 @@
 <template>
-  <!-- 打字机效果窗口组件 -->
+  <!-- 语音识别窗口组件 -->
   <div class="typing-container">
-    <!-- 显示打字机效果的文字区域 -->
+    <!-- 连接状态提示 -->
+    <div class="connection-status" v-if="!isComplete">
+      <span class="status-icon">●</span>
+      <span>{{ connectionStatus }}</span>
+    </div>
+    
+    <!-- 显示识别文字的区域 -->
     <div class="typing-text">
       <span class="text-content">{{ displayedText }}</span>
       <!-- 闪烁的光标 -->
-      <span class="cursor" v-if="!isComplete">|</span>
+      <span class="cursor" v-if="!isComplete && displayedText">|</span>
     </div>
+    
     <!-- 完成提示 -->
     <div class="status" v-if="isComplete">
       <span class="complete-icon">✓</span>
-      <span>输入完成</span>
+      <span>识别完成</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import SpeechRecognition from '../utils/speechRecognition.js'
 
 // ==================== 响应式状态 ====================
 // 当前已显示的文字
 const displayedText = ref('')
 // 是否完成打字
 const isComplete = ref(false)
+// 连接状态
+const connectionStatus = ref('正在连接...')
+// 语音识别实例
+let speechRecognizer = null
 
 // ==================== 配置项 ====================
-// 要显示的完整文本
-const fullText = '你好，我现在在模拟鼠标语音输入文字。'
-// 每个字符的打字间隔（毫秒）
-const typingSpeed = 100
+// WebSocket 服务器地址（默认值，可以通过 props 传入）
+const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
 // 打字完成后等待关闭的时间（毫秒）
 const closeDelay = 800
 
-// ==================== 打字机效果实现 ====================
+// ==================== 语音识别功能 ====================
 /**
- * 执行打字机效果
- * 逐字显示文本，完成后通知主进程
+ * 初始化语音识别
  */
-const startTyping = () => {
-  let currentIndex = 0
+const initSpeechRecognition = async () => {
+  try {
+    // 创建语音识别实例
+    speechRecognizer = new SpeechRecognition()
 
-  // 使用 setInterval 逐字显示
-  const timer = setInterval(() => {
-    if (currentIndex < fullText.length) {
-      // 逐字添加到显示文本
-      displayedText.value += fullText[currentIndex]
-      currentIndex++
-    } else {
-      // 打字完成
-      clearInterval(timer)
-      isComplete.value = true
-      // 延迟后通知主进程完成
-      setTimeout(() => {
-        // 通过 IPC 通知主进程打字完成，可以执行粘贴操作
-        window.electron.ipcRenderer.send('typing-complete', fullText)
-      }, closeDelay)
+    // 设置文本回调 - 实时更新显示的文本
+    speechRecognizer.onText((fullText, messageInfo) => {
+      displayedText.value = fullText
+      console.log('识别文本:', fullText, '消息信息:', messageInfo)
+
+      // 如果识别结束，标记为完成
+      if (messageInfo.end || messageInfo.is_final) {
+        handleRecognitionComplete(fullText)
+      }
+    })
+
+    // 设置错误回调
+    speechRecognizer.onError((error) => {
+      console.error('语音识别错误:', error)
+      connectionStatus.value = '连接失败'
+    })
+
+    // 设置状态变化回调
+    speechRecognizer.onStateChange((state) => {
+      if (state === 0) {
+        connectionStatus.value = '已连接，正在识别...'
+      } else if (state === 1) {
+        connectionStatus.value = '连接已断开'
+      } else if (state === 2) {
+        connectionStatus.value = '连接错误'
+      }
+    })
+
+    // 连接到 WebSocket 服务器
+    await speechRecognizer.connect(wsUrl, {
+      mode: '2pass',
+      language: 'ZH',
+      denoiser: false
+    })
+
+    console.log('语音识别初始化成功')
+  } catch (error) {
+    console.error('初始化语音识别失败:', error)
+    connectionStatus.value = '初始化失败'
+  }
+}
+
+/**
+ * 处理识别完成
+ */
+const handleRecognitionComplete = (finalText) => {
+  isComplete.value = true
+  
+  // 延迟后通知主进程完成
+  setTimeout(() => {
+    // 通过 IPC 通知主进程打字完成，可以执行粘贴操作
+    window.electron.ipcRenderer.send('typing-complete', finalText)
+    
+    // 关闭语音识别连接
+    if (speechRecognizer) {
+      speechRecognizer.close()
     }
-  }, typingSpeed)
+  }, closeDelay)
 }
 
 // ==================== 生命周期钩子 ====================
 onMounted(() => {
-  // 组件挂载后开始打字效果
-  startTyping()
+  // 组件挂载后初始化语音识别
+  initSpeechRecognition()
+})
+
+onUnmounted(() => {
+  // 组件卸载时关闭连接
+  if (speechRecognizer) {
+    speechRecognizer.close()
+    speechRecognizer = null
+  }
 })
 </script>
 
@@ -78,12 +138,39 @@ onMounted(() => {
   max-width: 400px;
 }
 
+/* 连接状态样式 */
+.connection-status {
+  font-size: 12px;
+  color: #a0a0a0;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-icon {
+  color: #64c8ff;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* 文字显示区域 */
 .typing-text {
   font-size: 16px;
   color: #e0e0e0;
   line-height: 1.6;
   font-family: 'Microsoft YaHei', sans-serif;
+  min-height: 24px;
 }
 
 /* 文字内容 */
