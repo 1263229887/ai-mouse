@@ -188,7 +188,7 @@ const initSpeechRecognition = async (wsUrl) => {
     speechRecognizer.onStateChange((state) => {
       log.info('连接状态变化', { state })
       if (state === 0) {
-        connectionStatus.value = '录音中，按 Ctrl+Shift+F 停止'
+        connectionStatus.value = '录音中，双击鼠标左键停止'
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {

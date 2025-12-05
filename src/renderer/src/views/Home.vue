@@ -4,23 +4,47 @@
     <h1 class="title">AI Mouse</h1>
     <div class="cards">
       <!-- AI输入卡片 -->
-      <div class="card" @click="triggerInput">
+      <div 
+        class="card" 
+        :class="{ 'card-selected': currentMode === 'typing' }"
+        @click="selectMode('typing')"
+      >
         <div class="card-icon">⌨️</div>
-        <h2 class="card-title">模拟AI输入</h2>
-        <p class="card-desc">模拟键盘输入AI生成的内容</p>
-        <div class="shortcut">Ctrl + Shift + Y</div>
+        <h2 class="card-title">语音识别输入</h2>
+        <p class="card-desc">语音实时识别,追加AI修正并输入</p>
+        <div class="shortcut" v-if="currentMode !== 'typing'">单击选择此模式</div>
+        <div class="shortcut active" v-else>
+          {{ isRecording ? '双击左键停止' : '双击左键启动' }}
+        </div>
         <!-- 状态提示 -->
-        <div class="status" v-if="inputStatus">{{ inputStatus }}</div>
+        <div class="status" v-if="currentMode === 'typing'">
+          <span class="status-dot" :class="{ 'recording': isRecording }"></span>
+          {{ isRecording ? '录音中...' : '已就绪，双击鼠标左键开始录音' }}
+        </div>
       </div>
       <!-- AI翻译卡片 -->
-      <div class="card" @click="triggerTranslate">
+      <div 
+        class="card" 
+        :class="{ 'card-selected': currentMode === 'translate' }"
+        @click="selectMode('translate')"
+      >
         <div class="card-icon">🌐</div>
-        <h2 class="card-title">模拟AI翻译</h2>
-        <p class="card-desc">选中文本后自动翻译并输入</p>
-        <div class="shortcut">Ctrl + Shift + U</div>
+        <h2 class="card-title">语音识别翻译</h2>
+        <p class="card-desc">语音实时识别,自动翻译并输入</p>
+        <div class="shortcut" v-if="currentMode !== 'translate'">单击选择此模式</div>
+        <div class="shortcut active" v-else>
+          {{ isRecording ? '双击左键停止' : '双击左键启动' }}
+        </div>
         <!-- 状态提示 -->
-        <div class="status" v-if="translateStatus">{{ translateStatus }}</div>
+        <div class="status" v-if="currentMode === 'translate'">
+          <span class="status-dot" :class="{ 'recording': isRecording }"></span>
+          {{ isRecording ? '录音中...' : '已就绪，双击鼠标左键开始录音' }}
+        </div>
       </div>
+    </div>
+    <!-- 取消按钮 -->
+    <div class="cancel-btn" v-if="currentMode" @click="cancelMode">
+      取消选择 (ESC)
     </div>
   </div>
 </template>
@@ -29,78 +53,86 @@
 /**
  * Home.vue - 首页组件
  * 显示功能卡片，用于选择不同的AI模拟功能
- * - 模拟AI输入：Ctrl+Shift+Y
- * - 模拟AI翻译：Ctrl+Shift+U
+ * - 单击卡片选择模式
+ * - 选择后双击鼠标左键启动录音
+ * - 再次双击左键停止并粘贴
  */
 
 import { onMounted, onUnmounted, ref } from 'vue'
 
 // ==================== 响应式状态 ====================
-// AI输入状态提示
-const inputStatus = ref('')
-// AI翻译状态提示
-const translateStatus = ref('')
+// 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
+const currentMode = ref(null)
+// 是否正在录音
+const isRecording = ref(false)
 
 // ==================== 事件处理函数 ====================
 /**
- * 触发AI输入功能
- * 通知主进程创建打字机窗口
+ * 选择模式
  */
-const triggerInput = () => {
-  inputStatus.value = '正在启动...'
-  // 通知主进程触发AI输入
-  window.electron.ipcRenderer.send('start-ai-input')
-  // 2秒后清除状态
-  setTimeout(() => {
-    inputStatus.value = ''
-  }, 2000)
+const selectMode = (mode) => {
+  if (currentMode.value === mode) {
+    // 已选中该模式，不做处理（通过双击鼠标启动）
+    return
+  }
+  currentMode.value = mode
+  isRecording.value = false
+  // 通知主进程
+  window.electron.ipcRenderer.send('select-mode', mode)
 }
 
 /**
- * 触发AI翻译功能
- * 通知主进程创建翻译窗口
+ * 取消模式选择
  */
-const triggerTranslate = () => {
-  translateStatus.value = '正在启动...'
-  // 通知主进程触发AI翻译
-  window.electron.ipcRenderer.send('start-ai-translate')
-  // 2秒后清除状态
-  setTimeout(() => {
-    translateStatus.value = ''
-  }, 2000)
+const cancelMode = () => {
+  currentMode.value = null
+  isRecording.value = false
+  // 通知主进程
+  window.electron.ipcRenderer.send('cancel-mode')
 }
 
 /**
- * 快捷键触发AI翻译时的回调
+ * 处理录音状态变化
  */
-const onAiTranslateTriggered = () => {
-  translateStatus.value = '正在翻译...'
-  setTimeout(() => {
-    translateStatus.value = ''
-  }, 5000)
+const onRecordingStateChanged = (event, data) => {
+  isRecording.value = data.isRecording
+  // 如果录音停止且识别完成，重置模式
+  if (!data.isRecording && data.completed) {
+    currentMode.value = null
+  }
 }
 
 /**
- * 快捷键触发AI输入时的回调
+ * 处理模式已选中的确认
  */
-const onAiInputTriggered = () => {
-  inputStatus.value = '正在输入...'
-  setTimeout(() => {
-    inputStatus.value = ''
-  }, 3000)
+const onModeSelected = (event, data) => {
+  currentMode.value = data.mode
+}
+
+/**
+ * 键盘事件处理 - ESC 取消选择
+ */
+const handleKeydown = (e) => {
+  if (e.key === 'Escape' && currentMode.value) {
+    cancelMode()
+  }
 }
 
 // ==================== 生命周期 ====================
 onMounted(() => {
-  // 监听快捷键触发事件
-  window.electron.ipcRenderer.on('trigger-ai-input', onAiInputTriggered)
-  window.electron.ipcRenderer.on('trigger-ai-translate', onAiTranslateTriggered)
+  // 监听录音状态变化
+  window.electron.ipcRenderer.on('recording-state-changed', onRecordingStateChanged)
+  window.electron.ipcRenderer.on('mode-selected', onModeSelected)
+  
+  // 监听键盘事件
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   // 清理事件监听
-  window.electron.ipcRenderer.removeAllListeners('trigger-ai-input')
-  window.electron.ipcRenderer.removeAllListeners('trigger-ai-translate')
+  window.electron.ipcRenderer.removeAllListeners('recording-state-changed')
+  window.electron.ipcRenderer.removeAllListeners('mode-selected')
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -160,6 +192,17 @@ onUnmounted(() => {
   border-color: rgba(100, 200, 255, 0.3);
 }
 
+/* 卡片选中状态 */
+.card-selected {
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.2);
+  transform: translateY(-4px);
+}
+
+.card-selected:hover {
+  border-color: rgba(74, 222, 128, 0.8);
+}
+
 /* 卡片图标 */
 .card-icon {
   font-size: 4rem;
@@ -192,10 +235,53 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+.shortcut.active {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
 /* 状态提示样式 */
 .status {
   margin-top: 12px;
   color: #4ade80;
   font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 状态指示点 */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.recording {
+  background: #f87171;
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 取消按钮 */
+.cancel-btn {
+  margin-top: 30px;
+  padding: 10px 24px;
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn:hover {
+  background: rgba(248, 113, 113, 0.25);
 }
 </style>

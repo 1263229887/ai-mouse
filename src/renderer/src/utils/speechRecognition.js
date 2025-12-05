@@ -146,10 +146,17 @@ class SpeechRecognition {
         // 开发环境下使用vite代理
         let actualWsUrl = wsUrl
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          // 将 ws://192.168.80.224:3002/v2/asr 转换为 ws://localhost:5173/ws-asr
           const port = window.location.port || '5173'
-          actualWsUrl = `ws://${window.location.hostname}:${port}/ws-asr`
-          logger.info('SpeechRecognition', '开发环境使用代理', { originalUrl: wsUrl, proxyUrl: actualWsUrl })
+          // 根据原始 URL 判断使用哪个代理路径
+          if (wsUrl.includes('/asr/speechTranslate')) {
+            // 翻译服务
+            actualWsUrl = `ws://${window.location.hostname}:${port}/ws-translate`
+            logger.info('SpeechRecognition', '开发环境使用翻译代理', { originalUrl: wsUrl, proxyUrl: actualWsUrl })
+          } else {
+            // 语音识别服务
+            actualWsUrl = `ws://${window.location.hostname}:${port}/ws-asr`
+            logger.info('SpeechRecognition', '开发环境使用识别代理', { originalUrl: wsUrl, proxyUrl: actualWsUrl })
+          }
         }
         
         // 设置超时

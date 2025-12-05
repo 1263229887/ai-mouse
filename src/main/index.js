@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, globalShortcut, clipboard, screen }
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec } from 'child_process'
+import { uIOhook } from 'uiohook-napi'
 
 import icon from '../renderer/src/assets/icon_av.png?asset'
 import logger from './logger.js'
@@ -11,6 +12,15 @@ import logger from './logger.js'
 let mainWindow = null
 // 弹窗窗口引用（用于打字机效果和翻译效果）
 let popupWindow = null
+
+// ==================== 模式状态管理 ====================
+// 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
+let currentMode = null
+// 当前是否正在录音
+let isRecording = false
+// 双击检测相关
+let lastClickTime = 0
+const DOUBLE_CLICK_INTERVAL = 400 // 双击间隔（毫秒）
 
 
 
@@ -214,13 +224,33 @@ app.whenReady().then(() => {
     logger.debug('Main', '调整窗口高度', { contentHeight, newHeight, newY })
   })
 
-  // ==================== 点击卡片触发AI翻译 ====================
+  // ==================== 模式选择处理 ====================
   /**
-   * 监听渲染进程点击翻译卡片事件
-   * 创建翻译窗口
+   * 监听渲染进程选择模式事件
    */
-  ipcMain.on('start-ai-translate', () => {
-    createPopupWindow('/translate')
+  ipcMain.on('select-mode', (event, mode) => {
+    logger.info('Main', '选择模式', { mode })
+    currentMode = mode
+    isRecording = false
+    
+    // 通知主窗口模式已选中
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mode-selected', { mode })
+    }
+  })
+
+  /**
+   * 监听取消模式选择事件
+   */
+  ipcMain.on('cancel-mode', () => {
+    logger.info('Main', '取消模式')
+    currentMode = null
+    isRecording = false
+    
+    // 关闭弹窗
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.close()
+    }
   })
 
   // ==================== 打字完成事件处理 ====================
@@ -251,91 +281,13 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Ctrl+Shift+Y: 启动语音识别（连接 WebSocket + 开始录音）
-  globalShortcut.register('Ctrl+Shift+Y', () => {
-    logger.info('Main', '快捷键 Ctrl+Shift+Y 被按下')
-    
-    // 通知主窗口（如果存在）
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('trigger-ai-input')
-    }
-    
-    // 创建打字机窗口，传递 WebSocket 地址
-    createPopupWindow('/typing')
-
-    // 使用延时确保窗口加载完成后发送消息
-    const wsUrl = 'ws://192.168.80.224:3002/v2/asr'
-    logger.info('Main', 'WebSocket 地址', wsUrl)
-    
-    if (popupWindow) {
-      // 先尝试等待加载完成
-      const sendMessage = () => {
-        if (popupWindow && !popupWindow.isDestroyed()) {
-          logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl })
-          popupWindow.webContents.send('start-speech-recognition', { wsUrl })
-        }
-      }
-      
-      // 监听加载完成事件
-      popupWindow.webContents.once('did-finish-load', () => {
-        logger.info('Main', 'popupWindow 加载完成')
-        sendMessage()
-      })
-      
-      // 如果窗口已经加载完成，延时后也发送一次
-      setTimeout(() => {
-        if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
-          logger.info('Main', 'popupWindow 延时发送消息')
-          sendMessage()
-        }
-      }, 500)
-    }
-  })
-
-  // Ctrl+Shift+U: 模拟AI翻译
-  globalShortcut.register('Ctrl+Shift+U', () => {
-    logger.info('Main', '快捷键 Ctrl+Shift+U 被按下')
-    
-    // 通知主窗口（如果存在）
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('trigger-ai-translate')
-    }
-    
-    // 创建翻译窗口
-    createPopupWindow('/translate')
-  })
-
   // Ctrl+Shift+L: 打开日志文件夹
-  globalShortcut.register('Ctrl+Shift+L', () => {
+  globalShortcut.register('Ctrl+Shift+T', () => {
     const logDir = logger.getLogDir()
-    logger.info('Main', '快捷键 Ctrl+Shift+L 被按下，打开日志文件夹', logDir)
+    logger.info('Main', '快捷键 Ctrl+Shift+T 被按下，打开日志文件夹', logDir)
     if (logDir) {
       shell.openPath(logDir)
     }
-  })
-
-  // Ctrl+Shift+T: 打开 Demo 测试窗口（用于测试 WebSocket 连接）
-  globalShortcut.register('Ctrl+Shift+T', () => {
-    logger.info('Main', '快捷键 Ctrl+Shift+T 被按下，打开 Demo 测试窗口')
-    
-    // 创建测试窗口
-    const testWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
-      title: 'WebSocket Demo 测试',
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    })
-    
-    // 加载 demo 页面
-    const demoPath = join(__dirname, '../demo/static/index.html')
-    logger.info('Main', '加载 Demo 页面', demoPath)
-    testWindow.loadFile(demoPath)
-    
-    // 打开开发者工具方便调试
-    testWindow.webContents.openDevTools()
   })
 
   // Ctrl+Shift+D: 打印调试日志
@@ -356,6 +308,8 @@ app.whenReady().then(() => {
     logger.info('Main', '弹窗加载中', debugInfo.popupIsLoading)
     logger.info('Main', '弹窗URL', debugInfo.popupURL)
     logger.info('Main', '日志文件路径', debugInfo.logPath)
+    logger.info('Main', '当前模式', currentMode)
+    logger.info('Main', '是否录音中', isRecording)
     logger.info('Main', '================================')
     
     // 也发送到渲染进程显示，包含日志路径
@@ -367,15 +321,33 @@ app.whenReady().then(() => {
     }
   })
 
-  // Ctrl+Shift+F: 停止语音识别
-  globalShortcut.register('Ctrl+Shift+F', () => {
-    logger.info('Main', '快捷键 Ctrl+Shift+F 被按下，停止录音')
+  // ==================== 鼠标双击监听 ====================
+  /**
+   * 使用 uiohook-napi 监听鼠标双击事件
+   * 双击左键：根据当前状态启动/停止录音
+   */
+  uIOhook.on('click', (e) => {
+    // 只监听鼠标左键（button 1）
+    if (e.button !== 1) return
     
-    // 发送停止录音消息给弹窗
-    if (popupWindow && !popupWindow.isDestroyed()) {
-      popupWindow.webContents.send('stop-speech-recognition')
+    // 检查是否选中了模式
+    if (!currentMode) return
+    
+    const currentTime = Date.now()
+    const timeDiff = currentTime - lastClickTime
+    lastClickTime = currentTime
+    
+    // 检测双击
+    if (timeDiff < DOUBLE_CLICK_INTERVAL) {
+      logger.info('Main', '检测到鼠标左键双击', { currentMode, isRecording })
+      handleDoubleClick()
+      lastClickTime = 0 // 重置，避免连续触发
     }
   })
+
+  // 启动 uiohook 监听
+  uIOhook.start()
+  logger.info('Main', 'uiohook 鼠标监听已启动')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -396,8 +368,100 @@ app.on('window-all-closed', () => {
 // 应用退出时注销所有快捷键和清理资源
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  uIOhook.stop()
   logger.info('Main', '应用退出，已清理资源')
 })
+
+// ==================== 双击处理逻辑 ====================
+/**
+ * 处理鼠标双击事件
+ */
+function handleDoubleClick() {
+  if (!currentMode) return
+  
+  if (!isRecording) {
+    // 启动录音
+    startRecordingByDoubleClick()
+  } else {
+    // 停止录音
+    stopRecordingByDoubleClick()
+  }
+}
+
+/**
+ * 双击启动录音
+ */
+function startRecordingByDoubleClick() {
+  logger.info('Main', '双击启动录音', { currentMode })
+  isRecording = true
+  
+  // 根据模式创建对应窗口
+  const route = currentMode === 'typing' ? '/typing' : '/translate'
+  createPopupWindow(route)
+  
+  // 通知主窗口状态变化
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recording-state-changed', { isRecording: true })
+  }
+  
+  // 根据模式使用不同的 WebSocket 地址和参数
+  let wsUrl, extraParams
+  if (currentMode === 'translate') {
+    // 翻译模式
+    wsUrl = 'ws://192.168.80.224:3002/asr/speechTranslate'
+    extraParams = {
+      originalCode: 'ZH',
+      sourceLanguage: 'ZH',
+      targetLanguage: 'EN',
+      openTranslate: true
+    }
+  } else {
+    // 语音输入模式
+    wsUrl = 'ws://192.168.80.224:3002/v2/asr'
+    extraParams = {}
+  }
+  
+  logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
+  
+  if (popupWindow) {
+    const sendMessage = () => {
+      if (popupWindow && !popupWindow.isDestroyed()) {
+        logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
+        popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
+      }
+    }
+    
+    popupWindow.webContents.once('did-finish-load', () => {
+      logger.info('Main', 'popupWindow 加载完成')
+      sendMessage()
+    })
+    
+    setTimeout(() => {
+      if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
+        logger.info('Main', 'popupWindow 延时发送消息')
+        sendMessage()
+      }
+    }, 500)
+  }
+}
+
+/**
+ * 双击停止录音
+ */
+function stopRecordingByDoubleClick() {
+  logger.info('Main', '双击停止录音')
+  isRecording = false
+  
+  // 通知主窗口状态变化
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recording-state-changed', { isRecording: false })
+  }
+  
+  // 发送停止录音消息给弹窗
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.webContents.send('stop-speech-recognition')
+  }
+}
 
 // ==================== 模拟粘贴操作 ====================
 /**

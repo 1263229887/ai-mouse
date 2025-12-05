@@ -21,11 +21,19 @@ export default defineConfig({
     server: {
       // WebSocket 代理配置
       proxy: {
+        // 语音识别服务
         '/ws-asr': {
           target: 'ws://192.168.80.224:3002',
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws-asr/, '/v2/asr')
+        },
+        // 翻译服务
+        '/ws-translate': {
+          target: 'ws://192.168.80.224:3002',
+          ws: true,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ws-translate/, '/asr/speechTranslate')
         }
       }
     }
