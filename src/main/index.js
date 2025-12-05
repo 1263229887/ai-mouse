@@ -22,8 +22,6 @@ let isRecording = false
 let lastClickTime = 0
 const DOUBLE_CLICK_INTERVAL = 400 // 双击间隔（毫秒）
 
-
-
 function createWindow() {
   // 创建主窗口
   mainWindow = new BrowserWindow({
@@ -74,7 +72,7 @@ function createPopupWindow(route = '/typing', options = {}) {
   // 根据路由设置不同的窗口尺寸
   const isTranslate = route === '/translate'
   const windowWidth = isTranslate ? 460 : 420
-  const initialHeight = isTranslate ? 280 : 240  // 初始高度增大，会动态调整
+  const initialHeight = isTranslate ? 280 : 240 // 初始高度增大，会动态调整
   const margin = 20
   // 计算最大窗口高度（屏幕可视高度的一半）
   const maxWindowHeight = Math.floor(screenHeight / 2)
@@ -129,7 +127,7 @@ function createPopupWindow(route = '/typing', options = {}) {
   popupWindow.on('closed', () => {
     popupWindow = null
   })
-  
+
   // 保存窗口配置信息用于动态调整
   popupWindow.windowConfig = {
     margin,
@@ -151,13 +149,13 @@ app.whenReady().then(() => {
   const logPath = logger.init()
   logger.info('Main', '应用启动')
   logger.info('Main', '日志文件路径', logPath)
-  
+
   // 忽略证书错误（允许ws://连接）
   const { session } = require('electron')
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
     callback(0) // 0 表示成功
   })
-  
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -178,7 +176,7 @@ app.whenReady().then(() => {
   ipcMain.on('log-to-file', (event, { level, source, message, data }) => {
     logger.fromRenderer(level, source, message, data)
   })
-  
+
   /**
    * 获取日志文件路径
    */
@@ -194,7 +192,7 @@ app.whenReady().then(() => {
   ipcMain.on('start-ai-input', () => {
     createPopupWindow('/typing')
   })
-  
+
   // ==================== 动态调整窗口高度 ====================
   /**
    * 根据内容高度动态调整弹窗高度
@@ -202,25 +200,25 @@ app.whenReady().then(() => {
    */
   ipcMain.on('adjust-window-height', (event, { contentHeight }) => {
     if (!popupWindow || popupWindow.isDestroyed()) return
-    
+
     const config = popupWindow.windowConfig
     if (!config) return
-    
+
     // 计算新高度，不超过最大高度
     const newHeight = Math.min(contentHeight, config.maxHeight)
     const currentBounds = popupWindow.getBounds()
-    
+
     // 保持底部位置不变，调整顶部位置
     const bottomY = currentBounds.y + currentBounds.height
     const newY = bottomY - newHeight
-    
+
     popupWindow.setBounds({
       x: currentBounds.x,
       y: newY,
       width: currentBounds.width,
       height: newHeight
     })
-    
+
     logger.debug('Main', '调整窗口高度', { contentHeight, newHeight, newY })
   })
 
@@ -232,7 +230,7 @@ app.whenReady().then(() => {
     logger.info('Main', '选择模式', { mode })
     currentMode = mode
     isRecording = false
-    
+
     // 通知主窗口模式已选中
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('mode-selected', { mode })
@@ -246,7 +244,7 @@ app.whenReady().then(() => {
     logger.info('Main', '取消模式')
     currentMode = null
     isRecording = false
-    
+
     // 关闭弹窗
     if (popupWindow && !popupWindow.isDestroyed()) {
       popupWindow.close()
@@ -296,11 +294,13 @@ app.whenReady().then(() => {
       mainWindowExists: mainWindow !== null && !mainWindow?.isDestroyed(),
       popupWindowExists: popupWindow !== null && !popupWindow?.isDestroyed(),
       allWindowsCount: BrowserWindow.getAllWindows().length,
-      popupIsLoading: popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.isLoading() : 'N/A',
-      popupURL: popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.getURL() : 'N/A',
+      popupIsLoading:
+        popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.isLoading() : 'N/A',
+      popupURL:
+        popupWindow && !popupWindow.isDestroyed() ? popupWindow.webContents.getURL() : 'N/A',
       logPath: logger.getLogPath()
     }
-    
+
     logger.info('Main', '========== 调试信息 ==========')
     logger.info('Main', '主窗口存在', debugInfo.mainWindowExists)
     logger.info('Main', '弹窗存在', debugInfo.popupWindowExists)
@@ -311,10 +311,10 @@ app.whenReady().then(() => {
     logger.info('Main', '当前模式', currentMode)
     logger.info('Main', '是否录音中', isRecording)
     logger.info('Main', '================================')
-    
+
     // 也发送到渲染进程显示，包含日志路径
     if (popupWindow && !popupWindow.isDestroyed()) {
-      popupWindow.webContents.send('debug-log', { 
+      popupWindow.webContents.send('debug-log', {
         message: '调试日志已写入文件',
         logPath: debugInfo.logPath
       })
@@ -329,14 +329,14 @@ app.whenReady().then(() => {
   uIOhook.on('click', (e) => {
     // 只监听鼠标左键（button 1）
     if (e.button !== 1) return
-    
+
     // 检查是否选中了模式
     if (!currentMode) return
-    
+
     const currentTime = Date.now()
     const timeDiff = currentTime - lastClickTime
     lastClickTime = currentTime
-    
+
     // 检测双击
     if (timeDiff < DOUBLE_CLICK_INTERVAL) {
       logger.info('Main', '检测到鼠标左键双击', { currentMode, isRecording })
@@ -378,7 +378,7 @@ app.on('will-quit', () => {
  */
 function handleDoubleClick() {
   if (!currentMode) return
-  
+
   if (!isRecording) {
     // 启动录音
     startRecordingByDoubleClick()
@@ -394,16 +394,16 @@ function handleDoubleClick() {
 function startRecordingByDoubleClick() {
   logger.info('Main', '双击启动录音', { currentMode })
   isRecording = true
-  
+
   // 根据模式创建对应窗口
   const route = currentMode === 'typing' ? '/typing' : '/translate'
   createPopupWindow(route)
-  
+
   // 通知主窗口状态变化
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording-state-changed', { isRecording: true })
   }
-  
+
   // 根据模式使用不同的 WebSocket 地址和参数
   let wsUrl, extraParams
   if (currentMode === 'translate') {
@@ -420,9 +420,9 @@ function startRecordingByDoubleClick() {
     wsUrl = 'ws://192.168.80.224:3002/v2/asr'
     extraParams = {}
   }
-  
+
   logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
-  
+
   if (popupWindow) {
     const sendMessage = () => {
       if (popupWindow && !popupWindow.isDestroyed()) {
@@ -430,12 +430,12 @@ function startRecordingByDoubleClick() {
         popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
       }
     }
-    
+
     popupWindow.webContents.once('did-finish-load', () => {
       logger.info('Main', 'popupWindow 加载完成')
       sendMessage()
     })
-    
+
     setTimeout(() => {
       if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
         logger.info('Main', 'popupWindow 延时发送消息')
@@ -451,12 +451,12 @@ function startRecordingByDoubleClick() {
 function stopRecordingByDoubleClick() {
   logger.info('Main', '双击停止录音')
   isRecording = false
-  
+
   // 通知主窗口状态变化
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording-state-changed', { isRecording: false })
   }
-  
+
   // 发送停止录音消息给弹窗
   if (popupWindow && !popupWindow.isDestroyed()) {
     popupWindow.webContents.send('stop-speech-recognition')
@@ -472,7 +472,7 @@ function stopRecordingByDoubleClick() {
  */
 function simulatePaste() {
   const platform = process.platform
-  
+
   if (platform === 'win32') {
     // Windows: 使用 PowerShell 的 SendKeys
     const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
