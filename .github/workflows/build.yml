@@ -34,6 +34,15 @@ jobs:
         with:
           version: 8
 
+      - name: Setup Python (for native modules)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python setuptools (macOS/Linux)
+        if: matrix.platform != 'win'
+        run: pip install setuptools
+
       - name: Install dependencies
         run: pnpm install
 
