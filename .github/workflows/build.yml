@@ -40,12 +40,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install Python setuptools
-        run: pip install setuptools
+        run: |
+          python --version
+          pip install setuptools
+          which python || where python
 
       - name: Install dependencies
         run: pnpm install
         env:
-          npm_config_python: python
+          PYTHON: ${{ env.pythonLocation }}/python
+          npm_config_python: ${{ env.pythonLocation }}/python
 
       - name: Build for Windows
         if: matrix.platform == 'win'
