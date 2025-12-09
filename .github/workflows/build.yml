@@ -39,12 +39,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Python setuptools (macOS/Linux)
-        if: matrix.platform != 'win'
+      - name: Install Python setuptools
         run: pip install setuptools
 
       - name: Install dependencies
         run: pnpm install
+        env:
+          npm_config_python: python
 
       - name: Build for Windows
         if: matrix.platform == 'win'
