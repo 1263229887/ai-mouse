@@ -1,5 +1,5 @@
 appId: com.danaid.aimouse
-productName: DanaID AI鼠标模拟器
+productName: DanaID AI鼠标
 directories:
   buildResources: build
 files:

@@ -34,6 +34,13 @@ export default defineConfig({
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws-translate/, '/asr/speechTranslate')
+        },
+        // 语言列表接口代理
+        '/api-proxy': {
+          target: 'https://mail.danaai.net',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api-proxy/, '')
         }
       }
     }

@@ -18,6 +18,14 @@ let popupWindow = null
 let currentMode = null
 // 当前是否正在录音
 let isRecording = false
+// 源语言 isoCode，默认中文
+let sourceIsoCode = 'ZH'
+// 目标语言 isoCode，默认英文
+let targetIsoCode = 'EN'
+// 源语言中文名称
+let sourceLangName = '中文'
+// 目标语言中文名称
+let targetLangName = '英文'
 // 双击检测相关
 let lastClickTime = 0
 const DOUBLE_CLICK_INTERVAL = 400 // 双击间隔（毫秒）
@@ -25,8 +33,8 @@ const DOUBLE_CLICK_INTERVAL = 400 // 双击间隔（毫秒）
 function createWindow() {
   // 创建主窗口
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1100,
+    height: 680,
     show: false,
     autoHideMenuBar: true,
     icon,
@@ -38,6 +46,18 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  // 主窗口关闭时，同时关闭弹窗
+  mainWindow.on('closed', () => {
+    // 强制销毁弹窗
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.destroy()
+    }
+    mainWindow = null
+    // 重置状态
+    currentMode = null
+    isRecording = false
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -156,6 +176,22 @@ app.whenReady().then(() => {
     callback(0) // 0 表示成功
   })
 
+  // 处理权限请求（麦克风等）
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    // 允许麦克风和音频权限
+    if (permission === 'media' || permission === 'microphone' || permission === 'audio') {
+      callback(true)
+    } else {
+      callback(true) // 允许其他权限
+    }
+  })
+
+  // 处理权限检查
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    // 允许所有权限检查
+    return true
+  })
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -193,6 +229,38 @@ app.whenReady().then(() => {
     createPopupWindow('/typing')
   })
 
+  // ==================== 弹窗控制 ====================
+  /**
+   * 关闭弹窗
+   */
+  ipcMain.on('close-popup', () => {
+    logger.info('Main', '收到关闭弹窗请求')
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.destroy()
+    }
+    // 重置录音状态
+    isRecording = false
+    // 通知主窗口
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-state-changed', { isRecording: false })
+    }
+  })
+
+  /**
+   * 拖动弹窗
+   */
+  ipcMain.on('drag-popup', (event, { deltaX, deltaY }) => {
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      const bounds = popupWindow.getBounds()
+      popupWindow.setBounds({
+        x: bounds.x + deltaX,
+        y: bounds.y + deltaY,
+        width: bounds.width,
+        height: bounds.height
+      })
+    }
+  })
+
   // ==================== 动态调整窗口高度 ====================
   /**
    * 根据内容高度动态调整弹窗高度
@@ -226,15 +294,37 @@ app.whenReady().then(() => {
   /**
    * 监听渲染进程选择模式事件
    */
-  ipcMain.on('select-mode', (event, mode) => {
-    logger.info('Main', '选择模式', { mode })
+  ipcMain.on('select-mode', (event, data) => {
+    // 支持新格式 { mode, sourceIsoCode, targetIsoCode, sourceLangName, targetLangName }
+    const mode = typeof data === 'object' ? data.mode : data
+    const srcCode = typeof data === 'object' ? data.sourceIsoCode : 'ZH'
+    const tgtCode = typeof data === 'object' ? data.targetIsoCode : 'EN'
+    const srcName = typeof data === 'object' ? data.sourceLangName : '中文'
+    const tgtName = typeof data === 'object' ? data.targetLangName : '英文'
+    
+    logger.info('Main', '选择模式', { mode, sourceIsoCode: srcCode, targetIsoCode: tgtCode, sourceLangName: srcName, targetLangName: tgtName })
     currentMode = mode
+    sourceIsoCode = srcCode
+    targetIsoCode = tgtCode
+    sourceLangName = srcName
+    targetLangName = tgtName
     isRecording = false
 
     // 通知主窗口模式已选中
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('mode-selected', { mode })
     }
+  })
+
+  /**
+   * 监听更新语言事件
+   */
+  ipcMain.on('update-translate-language', (event, { sourceIsoCode: srcCode, targetIsoCode: tgtCode, sourceLangName: srcName, targetLangName: tgtName }) => {
+    logger.info('Main', '更新语言', { sourceIsoCode: srcCode, targetIsoCode: tgtCode, sourceLangName: srcName, targetLangName: tgtName })
+    sourceIsoCode = srcCode
+    targetIsoCode = tgtCode
+    if (srcName) sourceLangName = srcName
+    if (tgtName) targetLangName = tgtName
   })
 
   /**
@@ -404,21 +494,27 @@ function startRecordingByDoubleClick() {
     mainWindow.webContents.send('recording-state-changed', { isRecording: true })
   }
 
-  // 根据模式使用不同的 WebSocket 地址和参数
-  let wsUrl, extraParams
+  // 统一使用翻译接口的 WebSocket 地址
+  const wsUrl = 'ws://chat.danaai.net/asr/speechTranslate'
+  
+  let extraParams
   if (currentMode === 'translate') {
-    // 翻译模式
-    wsUrl = 'ws://192.168.80.224:3002/asr/speechTranslate'
+    // 翻译模式：根据选择的语言设置参数
+    extraParams = {
+      originalCode: sourceIsoCode,
+      sourceLanguage: sourceIsoCode,
+      targetLanguage: targetIsoCode,
+      openTranslate: true,
+      displayDirection: `${sourceLangName} → ${targetLangName}`
+    }
+  } else {
+    // 语音输入模式：使用中文识别，不开启翻译
     extraParams = {
       originalCode: 'ZH',
       sourceLanguage: 'ZH',
       targetLanguage: 'EN',
-      openTranslate: true
+      openTranslate: false
     }
-  } else {
-    // 语音输入模式
-    wsUrl = 'ws://192.168.80.224:3002/v2/asr'
-    extraParams = {}
   }
 
   logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })

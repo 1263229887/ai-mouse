@@ -47,6 +47,18 @@ const api = {
    */
   adjustWindowHeight: (contentHeight) => {
     ipcRenderer.send('adjust-window-height', { contentHeight })
+  },
+  /**
+   * 关闭弹窗
+   */
+  closePopup: () => {
+    ipcRenderer.send('close-popup')
+  },
+  /**
+   * 拖动弹窗
+   */
+  dragPopup: (deltaX, deltaY) => {
+    ipcRenderer.send('drag-popup', { deltaX, deltaY })
   }
 }
 

@@ -1,6 +1,12 @@
 <template>
   <!-- 语音识别窗口组件 -->
   <div class="typing-container" ref="containerRef">
+    <!-- 标题栏：拖动和关闭 -->
+    <div class="title-bar" @mousedown="startDrag">
+      <span class="title">语音输入</span>
+      <button class="close-btn" @click="closeWindow" @mousedown.stop>×</button>
+    </div>
+    
     <!-- 连接状态提示 -->
     <div class="connection-status" v-if="!isComplete">
       <span class="status-icon" :class="statusIconClass">●</span>
@@ -103,6 +109,59 @@ let removeStopListener = null
 let removeDebugListener = null
 // 是否已初始化
 let isInitialized = false
+// 拖动相关
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+
+// ==================== 原文消息管理 ====================
+// 原文消息Map（mode: offline）
+const originalMessageMap = new Map()
+
+// ==================== 窗口控制 ====================
+/**
+ * 关闭窗口
+ */
+const closeWindow = () => {
+  log.info('用户点击关闭按钮')
+  // 先停止录音
+  if (speechRecognizer) {
+    speechRecognizer.close()
+  }
+  window.api?.closePopup()
+}
+
+/**
+ * 开始拖动
+ */
+const startDrag = (e) => {
+  isDragging = true
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+/**
+ * 拖动中
+ */
+const onDrag = (e) => {
+  if (!isDragging) return
+  const deltaX = e.screenX - dragStartX
+  const deltaY = e.screenY - dragStartY
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+  window.api?.dragPopup(deltaX, deltaY)
+}
+
+/**
+ * 停止拖动
+ */
+const stopDrag = () => {
+  isDragging = false
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+}
 
 // ==================== 动态窗口高度 ====================
 /**
@@ -143,8 +202,9 @@ const closeDelay = 800
 /**
  * 初始化语音识别
  * @param {string} wsUrl - WebSocket 服务器地址
+ * @param {Object} extraParams - 额外参数
  */
-const initSpeechRecognition = async (wsUrl) => {
+const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
   // 防止重复初始化
   if (isInitialized) {
     log.info('已经初始化，跳过')
@@ -152,7 +212,7 @@ const initSpeechRecognition = async (wsUrl) => {
   }
   isInitialized = true
   
-  log.info('开始初始化', { wsUrl })
+  log.info('开始初始化', { wsUrl, extraParams })
   
   try {
     connectionStatus.value = '正在连接...'
@@ -165,15 +225,23 @@ const initSpeechRecognition = async (wsUrl) => {
       Object.assign(statusDetail, detail)
     })
 
-    // 设置文本回调 - 实时更新显示的文本
+    // 设置文本回调 - 只处理 mode: offline 的原文消息
     speechRecognizer.onText((fullText, messageInfo) => {
-      displayedText.value = fullText
-      log.debug('识别文本', { fullText, messageInfo })
+      log.debug('WebSocket返回', JSON.stringify(messageInfo))
+      
+      const { mode, id, text, is_final } = messageInfo || {}
+      
+      // 只处理原文（mode: offline）
+      if (mode === 'offline') {
+        // 同 id 替换，不同 id 拼接
+        originalMessageMap.set(id, text)
+        displayedText.value = Array.from(originalMessageMap.values()).join('')
+      }
       
       // 检查是否收到 is_final: true，表示服务端处理完成
-      if (messageInfo && messageInfo.is_final === true) {
+      if (is_final === true) {
         log.info('收到服务端完成消息', messageInfo)
-        handleRecognitionComplete(fullText)
+        handleRecognitionComplete(displayedText.value)
       }
     })
 
@@ -200,7 +268,8 @@ const initSpeechRecognition = async (wsUrl) => {
     await speechRecognizer.connect(wsUrl, {
       mode: '2pass',
       language: 'ZH',
-      denoiser: false
+      denoiser: false,
+      ...extraParams
     })
 
     log.info('语音识别初始化成功', { wsUrl })
@@ -264,7 +333,7 @@ onMounted(async () => {
   removeStartListener = window.electron.ipcRenderer.on('start-speech-recognition', (event, data) => {
     log.info('收到启动语音识别消息', data)
     if (data && data.wsUrl) {
-      initSpeechRecognition(data.wsUrl)
+      initSpeechRecognition(data.wsUrl, data.extraParams || {})
     }
   })
 
@@ -309,7 +378,7 @@ onUnmounted(() => {
 <style scoped>
 /* 容器样式 - 圆角卡片效果 */
 .typing-container {
-  padding: 16px 20px;
+  padding: 0 0 16px 0;
   background: linear-gradient(145deg, #1a1a2e, #16162a);
   border-radius: 12px;
   border: 1px solid rgba(100, 200, 255, 0.2);
@@ -318,6 +387,45 @@ onUnmounted(() => {
   max-width: 400px;
   min-height: 150px;
   overflow-y: auto; /* 内容超出时显示滚动条 */
+}
+
+/* 标题栏 */
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px 12px 0 0;
+  cursor: move;
+  user-select: none;
+  margin-bottom: 12px;
+}
+
+.title-bar .title {
+  font-size: 13px;
+  color: #a0a0a0;
+  font-weight: 500;
+}
+
+.title-bar .close-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 100, 100, 0.2);
+  color: #f87171;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.title-bar .close-btn:hover {
+  background: rgba(255, 100, 100, 0.4);
+  color: #fff;
 }
 
 /* 自定义滚动条样式 */
@@ -344,6 +452,7 @@ onUnmounted(() => {
   font-size: 12px;
   color: #a0a0a0;
   margin-bottom: 12px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -387,6 +496,7 @@ onUnmounted(() => {
   line-height: 1.6;
   font-family: 'Microsoft YaHei', sans-serif;
   min-height: 24px;
+  padding: 0 16px;
 }
 
 /* 文字内容 */
@@ -415,7 +525,7 @@ onUnmounted(() => {
 
 /* 完成状态提示 */
 .status {
-  margin-top: 12px;
+  margin: 12px 16px 0 16px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -434,7 +544,7 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.3);
   border-radius: 6px;
   padding: 8px 10px;
-  margin-bottom: 12px;
+  margin: 0 16px 12px 16px;
   font-size: 11px;
 }
 
