@@ -34,8 +34,21 @@ jobs:
         with:
           version: 8
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Setup Python (for native modules)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python setuptools
+        run: pip install setuptools
+
+      - name: Install dependencies (skip postinstall)
+        run: pnpm install --ignore-scripts
+
+      - name: Rebuild native modules
+        run: pnpm exec electron-builder install-app-deps
+        env:
+          PYTHON: python
 
       - name: Build for Windows
         if: matrix.platform == 'win'
