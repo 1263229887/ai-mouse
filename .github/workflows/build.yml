@@ -40,16 +40,15 @@ jobs:
           python-version: '3.11'
 
       - name: Install Python setuptools
-        run: |
-          python --version
-          pip install setuptools
-          which python || where python
+        run: pip install setuptools
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Install dependencies (skip postinstall)
+        run: pnpm install --ignore-scripts
+
+      - name: Rebuild native modules
+        run: pnpm exec electron-builder install-app-deps
         env:
-          PYTHON: ${{ env.pythonLocation }}/python
-          npm_config_python: ${{ env.pythonLocation }}/python
+          PYTHON: python
 
       - name: Build for Windows
         if: matrix.platform == 'win'
