@@ -10,12 +10,12 @@
         <p class="card-desc">语音实时识别,追加AI修正并输入</p>
         <div class="shortcut" v-if="currentMode !== 'typing'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? '双击左键停止' : '双击左键启动' }}
+          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'typing'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，双击鼠标左键开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
         </div>
       </div>
       <!-- AI翻译卡片 -->
@@ -72,12 +72,12 @@
         <p class="card-desc">语音实时识别,自动翻译并输入</p>
         <div class="shortcut" v-if="currentMode !== 'translate'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? '双击左键停止' : '双击左键启动' }}
+          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'translate'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，双击鼠标左键开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
         </div>
       </div>
     </div>
@@ -93,8 +93,8 @@
  * Home.vue - 首页组件
  * 显示功能卡片，用于选择不同的AI模拟功能
  * - 单击卡片选择模式
- * - 选择后双击鼠标左键启动录音
- * - 再次双击左键停止并粘贴
+ * - 选择后按 Ctrl+Shift+F (Mac: Cmd+Shift+F) 启动录音
+ * - 再次按快捷键停止并粘贴
  */
 
 import { onMounted, onUnmounted, ref, computed } from 'vue'
@@ -239,7 +239,7 @@ const notifyLanguageChange = () => {
  */
 const selectMode = (mode) => {
   if (currentMode.value === mode) {
-    // 已选中该模式，不做处理（通过双击鼠标启动）
+    // 已选中该模式，不做处理（通过快捷键启动）
     return
   }
   currentMode.value = mode

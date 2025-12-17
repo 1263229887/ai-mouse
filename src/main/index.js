@@ -2,7 +2,6 @@ import { app, shell, BrowserWindow, ipcMain, globalShortcut, clipboard, screen }
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { exec } from 'child_process'
-import { uIOhook } from 'uiohook-napi'
 
 import icon from '../renderer/src/assets/icon_av.png?asset'
 import logger from './logger.js'
@@ -26,9 +25,6 @@ let targetIsoCode = 'EN'
 let sourceLangName = '中文'
 // 目标语言中文名称
 let targetLangName = '英文'
-// 双击检测相关
-let lastClickTime = 0
-const DOUBLE_CLICK_INTERVAL = 400 // 双击间隔（毫秒）
 
 function createWindow() {
   // 创建主窗口
@@ -411,33 +407,22 @@ app.whenReady().then(() => {
     }
   })
 
-  // ==================== 鼠标双击监听 ====================
+  // ==================== 快捷键控制录音 ====================
   /**
-   * 使用 uiohook-napi 监听鼠标双击事件
-   * 双击左键：根据当前状态启动/停止录音
+   * 使用 Ctrl+Shift+F (Windows/Linux) 或 Command+Shift+F (macOS) 启动/停止录音
+   * CommandOrControl 会自动适配不同平台
    */
-  uIOhook.on('click', (e) => {
-    // 只监听鼠标左键（button 1）
-    if (e.button !== 1) return
-
+  globalShortcut.register('CommandOrControl+Shift+F', () => {
     // 检查是否选中了模式
-    if (!currentMode) return
-
-    const currentTime = Date.now()
-    const timeDiff = currentTime - lastClickTime
-    lastClickTime = currentTime
-
-    // 检测双击
-    if (timeDiff < DOUBLE_CLICK_INTERVAL) {
-      logger.info('Main', '检测到鼠标左键双击', { currentMode, isRecording })
-      handleDoubleClick()
-      lastClickTime = 0 // 重置，避免连续触发
+    if (!currentMode) {
+      logger.info('Main', '快捷键按下但未选择模式，忽略')
+      return
     }
-  })
 
-  // 启动 uiohook 监听
-  uIOhook.start()
-  logger.info('Main', 'uiohook 鼠标监听已启动')
+    logger.info('Main', '快捷键 Ctrl/Cmd+Shift+F 按下', { currentMode, isRecording })
+    handleRecordingToggle()
+  })
+  logger.info('Main', '快捷键 CommandOrControl+Shift+F 已注册')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -455,34 +440,33 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 应用退出时注销所有快捷键和清理资源
+// 应用退出时注销所有快捷键
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
-  uIOhook.stop()
   logger.info('Main', '应用退出，已清理资源')
 })
 
-// ==================== 双击处理逻辑 ====================
+// ==================== 快捷键录音控制逻辑 ====================
 /**
- * 处理鼠标双击事件
+ * 处理快捷键切换录音状态
  */
-function handleDoubleClick() {
+function handleRecordingToggle() {
   if (!currentMode) return
 
   if (!isRecording) {
     // 启动录音
-    startRecordingByDoubleClick()
+    startRecording()
   } else {
     // 停止录音
-    stopRecordingByDoubleClick()
+    stopRecording()
   }
 }
 
 /**
- * 双击启动录音
+ * 启动录音
  */
-function startRecordingByDoubleClick() {
-  logger.info('Main', '双击启动录音', { currentMode })
+function startRecording() {
+  logger.info('Main', '快捷键启动录音', { currentMode })
   isRecording = true
 
   // 根据模式创建对应窗口
@@ -542,10 +526,10 @@ function startRecordingByDoubleClick() {
 }
 
 /**
- * 双击停止录音
+ * 停止录音
  */
-function stopRecordingByDoubleClick() {
-  logger.info('Main', '双击停止录音')
+function stopRecording() {
+  logger.info('Main', '快捷键停止录音')
   isRecording = false
 
   // 通知主窗口状态变化
