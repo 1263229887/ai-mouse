@@ -2,24 +2,39 @@
   <!-- 首页组件 - 功能卡片选择页面 -->
   <div class="container">
     <h1 class="title">AI Mouse</h1>
+    
+    <!-- 蓝牙连接状态区域 -->
+    <div class="bluetooth-status" :class="{ 'connected': bluetoothConnected }">
+      <span class="bt-icon">{{ bluetoothConnected ? '🟢' : '🔴' }}</span>
+      <span class="bt-text">{{ bluetoothStatusText }}</span>
+      <!-- 连接按钮 -->
+      <button v-if="!bluetoothConnected" class="bt-btn" @click="scanAndConnect" :disabled="isConnecting">
+        {{ isConnecting ? '扫描中...' : '授权蓝牙' }}
+      </button>
+      <button v-else class="bt-btn disconnect" @click="disconnectBluetooth">断开连接</button>
+    </div>
+    
     <div class="cards">
       <!-- AI输入卡片 -->
-      <div class="card" :class="{ 'card-selected': currentMode === 'typing' }" @click="selectMode('typing')">
+      <div class="card" 
+           :class="{ 'card-selected': currentMode === 'typing', 'card-disabled': !bluetoothConnected }" 
+           @click="selectMode('typing')">
         <div class="card-icon">⌨️</div>
         <h2 class="card-title">语音输入</h2>
         <p class="card-desc">语音实时识别,追加AI修正并输入</p>
-        <div class="shortcut" v-if="currentMode !== 'typing'">单击选择此模式</div>
-        <div class="shortcut active" v-else>
-          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
-        </div>
+        <div class="shortcut" v-if="!bluetoothConnected">请先授权蓝牙</div>
+        <div class="shortcut" v-else-if="currentMode !== 'typing'">单击选择此模式</div>
+        <div class="shortcut active" v-else>长按蓝牙笔开始录音</div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'typing'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔开始录音' }}
         </div>
       </div>
       <!-- AI翻译卡片 -->
-      <div class="card" :class="{ 'card-selected': currentMode === 'translate' }" @click="selectMode('translate')">
+      <div class="card" 
+           :class="{ 'card-selected': currentMode === 'translate', 'card-disabled': !bluetoothConnected }" 
+           @click="selectMode('translate')">
         <!-- 语言选择区域 -->
         <div class="lang-selector" @click.stop>
           <!-- 源语言 -->
@@ -70,14 +85,13 @@
         <div class="card-icon">🌐</div>
         <h2 class="card-title">语音翻译</h2>
         <p class="card-desc">语音实时识别,自动翻译并输入</p>
-        <div class="shortcut" v-if="currentMode !== 'translate'">单击选择此模式</div>
-        <div class="shortcut active" v-else>
-          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
-        </div>
+        <div class="shortcut" v-if="!bluetoothConnected">请先授权蓝牙</div>
+        <div class="shortcut" v-else-if="currentMode !== 'translate'">单击选择此模式</div>
+        <div class="shortcut active" v-else>长按蓝牙笔开始录音</div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'translate'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔开始录音' }}
         </div>
       </div>
     </div>
@@ -93,8 +107,7 @@
  * Home.vue - 首页组件
  * 显示功能卡片，用于选择不同的AI模拟功能
  * - 单击卡片选择模式
- * - 选择后按 Ctrl+Shift+F (Mac: Cmd+Shift+F) 启动录音
- * - 再次按快捷键停止并粘贴
+ * - 授权蓝牙后，长按蓝牙笔开始录音，松开停止
  */
 
 import { onMounted, onUnmounted, ref, computed } from 'vue'
@@ -105,6 +118,65 @@ import { Search } from '@element-plus/icons-vue'
 const currentMode = ref(null)
 // 是否正在录音
 const isRecording = ref(false)
+
+// ==================== 蓝牙状态 ====================
+// 蓝牙连接状态
+const bluetoothConnected = ref(false)
+// 蓝牙设备名称
+const bluetoothDeviceName = ref('')
+// 是否正在连接中
+const isConnecting = ref(false)
+// 蓝牙设备引用
+let bluetoothDevice = null
+let bluetoothServer = null
+// BLE 特征值引用
+let serialWriteCharacteristic = null
+let serialNotifyCharacteristic = null
+let bleService = null
+// 心跳检测
+let lastHeartbeatTime = 0
+let heartbeatCheckInterval = null
+const HEARTBEAT_TIMEOUT = 30000 // 30秒无心跳视为断开（设备可能不会主动发送数据）
+
+// BLE UUID（使用小写 number 形式，最稳定）
+const BLE_UUID = {
+  SERVICE: 0xff00,  // 串口主服务
+  NOTIFY: 0xff01,   // 下行数据/心跳
+  WRITE: 0xff02,    // 上行写入
+  READ: 0xff03,     // 可选读取
+}
+
+// 兼容旧代码
+const BLE_SERVICE_UUID = BLE_UUID.SERVICE
+const BLE_NOTIFY_UUID = BLE_UUID.NOTIFY
+const BLE_WRITE_UUID = BLE_UUID.WRITE
+
+// 蓝牙协议命令
+const BLE_CMD = {
+  READ_MAC: '055C020500',           // 读 MAC 地址
+  VOICE_START: '055C020701',        // 启动语音模式
+  VOICE_STOP: '055C020700',         // 停止语音模式
+}
+
+// 蓝牙协议响应
+const BLE_RESP = {
+  MAC_PREFIX: '055d0507',           // MAC 地址响应前缀
+  VOICE_START_OK: '055d07014f4b',   // 启动语音模式成功
+  VOICE_STOP_OK: '055d07004f4b',    // 停止语音模式成功
+  RECORDING_START: '055d070101',    // 设备通知开始录音（长按）
+  RECORDING_STOP: '055d070100',     // 设备通知停止录音（松开）
+}
+
+// 蓝牙状态文本
+const bluetoothStatusText = computed(() => {
+  if (isConnecting.value) {
+    return '正在扫描蓝牙设备...'
+  }
+  if (bluetoothConnected.value) {
+    return `已连接: ${bluetoothDeviceName.value || 'Musttrue Pencil'}`
+  }
+  return '蓝牙笔未连接'
+})
 
 // ==================== 语言选择 ====================
 // 语言列表
@@ -236,14 +308,32 @@ const notifyLanguageChange = () => {
 // ==================== 事件处理函数 ====================
 /**
  * 选择模式
+ * 选择后向设备发送启动语音模式命令
  */
-const selectMode = (mode) => {
-  if (currentMode.value === mode) {
-    // 已选中该模式，不做处理（通过快捷键启动）
+const selectMode = async (mode) => {
+  // 检查蓝牙连接状态
+  if (!bluetoothConnected.value) {
+    console.log('[Home] 蓝牙未连接，无法选择模式')
     return
   }
+  
+  if (currentMode.value === mode) {
+    // 已选中该模式，不做处理
+    return
+  }
+  
+  console.log('[Home] 选择模式:', mode)
+  
+  // 向设备发送启动语音模式命令
+  const success = await sendBleCommand(BLE_CMD.VOICE_START)
+  if (!success) {
+    console.error('[Home] 发送启动语音模式命令失败')
+    return
+  }
+  
   currentMode.value = mode
   isRecording.value = false
+  
   // 通知主进程，包含语言信息
   window.electron.ipcRenderer.send('select-mode', {
     mode,
@@ -256,10 +346,19 @@ const selectMode = (mode) => {
 
 /**
  * 取消模式选择
+ * 取消时向设备发送停止语音模式命令
  */
-const cancelMode = () => {
+const cancelMode = async () => {
+  console.log('[Home] 取消模式')
+  
+  // 向设备发送停止语音模式命令
+  if (bluetoothConnected.value) {
+    await sendBleCommand(BLE_CMD.VOICE_STOP)
+  }
+  
   currentMode.value = null
   isRecording.value = false
+  
   // 通知主进程
   window.electron.ipcRenderer.send('cancel-mode')
 }
@@ -291,10 +390,429 @@ const handleKeydown = (e) => {
   }
 }
 
+// ==================== 蓝牙连接方法 ====================
+/**
+ * 将十六进制字符串转换为 Uint8Array
+ */
+const hexToBytes = (hex) => {
+  const bytes = []
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16))
+  }
+  return new Uint8Array(bytes)
+}
+
+/**
+ * 将 Uint8Array 转换为十六进制字符串
+ */
+const bytesToHex = (bytes) => {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * 发送 BLE 命令
+ */
+const sendBleCommand = async (cmdHex) => {
+  if (!serialWriteCharacteristic) {
+    console.error('[BLE] 无法发送命令：未连接')
+    return false
+  }
+  try {
+    console.log('[BLE] 发送命令:', cmdHex)
+    await serialWriteCharacteristic.writeValue(hexToBytes(cmdHex))
+    return true
+  } catch (error) {
+    console.error('[BLE] 发送命令失败:', error.message)
+    return false
+  }
+}
+
+/**
+ * 扫描并连接蓝牙设备
+ * 由于某些设备在广播中不包含服务 UUID，使用 acceptAllDevices 模式
+ * 在连接后验证服务是否可用
+ */
+const scanAndConnect = async () => {
+  if (isConnecting.value) return
+  
+  console.log('[BLE] 开始扫描蓝牙设备...')
+  console.log('[BLE] 使用 acceptAllDevices 模式（设备可能在广播中不包含服务 UUID）')
+  isConnecting.value = true
+  
+  try {
+    // 使用 acceptAllDevices 模式，因为某些 BLE 设备在广播中不包含服务 UUID
+    // 在连接后再验证 0xff00 服务是否可用
+    console.log('[BLE] 调用 requestDevice...')
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [BLE_UUID.SERVICE]  // 允许访问 0xff00 服务
+    })
+    
+    console.log('[BLE] 设备已选择:', device.name, device.id)
+    
+    // 保存设备 ID 用于自动重连
+    localStorage.setItem('ble-device-id', device.id)
+    
+    // 连接设备
+    await connectToDevice(device)
+    
+  } catch (error) {
+    console.error('[BLE] 扫描/连接失败:', error.name, error.message)
+    if (error.name !== 'NotFoundError') {
+      // NotFoundError 是用户取消或未找到设备
+      alert('蓝牙连接失败: ' + error.message)
+    }
+  } finally {
+    isConnecting.value = false
+  }
+}
+
+/**
+ * 自动重连（无需用户手势）
+ * 页面加载时尝试连接之前授权过的设备
+ */
+const autoReconnect = async () => {
+  const savedId = localStorage.getItem('ble-device-id')
+  if (!savedId) {
+    console.log('[BLE] 没有保存的设备 ID，跳过自动重连')
+    return
+  }
+  
+  console.log('[BLE] 尝试自动重连，设备 ID:', savedId)
+  
+  try {
+    const devices = await navigator.bluetooth.getDevices()
+    console.log('[BLE] 已授权设备数量:', devices.length)
+    
+    const device = devices.find(d => d.id === savedId)
+    if (!device) {
+      console.log('[BLE] 未找到之前授权的设备')
+      return
+    }
+    
+    console.log('[BLE] 找到已授权设备:', device.name)
+    
+    // 检查是否已连接
+    if (device.gatt?.connected) {
+      console.log('[BLE] 设备已连接，跳过')
+      return
+    }
+    
+    // 连接设备
+    await connectToDevice(device)
+    
+  } catch (error) {
+    console.log('[BLE] 自动重连失败:', error.message)
+  }
+}
+
+/**
+ * 连接到指定的蓝牙设备
+ */
+const connectToDevice = async (device) => {
+  console.log('[BLE] 开始连接设备:', device.name)
+  
+  try {
+    bluetoothDevice = device
+    bluetoothDeviceName.value = device.name || 'Musttrue Pencil'
+    
+    // 监听设备断开连接
+    device.addEventListener('gattserverdisconnected', onBluetoothDisconnected)
+    
+    // Step 1: 连接 GATT 服务器
+    console.log('[BLE] Step 1: 连接 GATT 服务器...')
+    bluetoothServer = await device.gatt.connect()
+    console.log('[BLE] Step 1: GATT 连接成功')
+    
+    // Step 2: 获取 BLE 串口服务 (0xff00)
+    console.log('[BLE] Step 2: 获取服务 0xff00...')
+    bleService = await bluetoothServer.getPrimaryService(BLE_UUID.SERVICE)
+    console.log('[BLE] Step 2: 服务获取成功')
+    
+    // Step 3: 获取写特征值 (0xff02)
+    console.log('[BLE] Step 3: 获取写特征值 0xff02...')
+    serialWriteCharacteristic = await bleService.getCharacteristic(BLE_UUID.WRITE)
+    console.log('[BLE] Step 3: 写特征值获取成功')
+    
+    // Step 4: 获取通知特征值 (0xff01)
+    console.log('[BLE] Step 4: 获取通知特征值 0xff01...')
+    serialNotifyCharacteristic = await bleService.getCharacteristic(BLE_UUID.NOTIFY)
+    console.log('[BLE] Step 4: 通知特征值获取成功')
+    
+    // Step 5: 启用通知
+    console.log('[BLE] Step 5: 启用通知...')
+    await serialNotifyCharacteristic.startNotifications()
+    serialNotifyCharacteristic.addEventListener('characteristicvaluechanged', onBleDataReceived)
+    console.log('[BLE] Step 5: 通知已启用')
+    
+    // Step 6: 发送读 MAC 地址命令验证连接
+    console.log('[BLE] Step 6: 发送读 MAC 地址命令...')
+    await sendBleCommand(BLE_CMD.READ_MAC)
+    console.log('[BLE] Step 6: MAC 命令已发送')
+    
+    // 连接成功
+    bluetoothConnected.value = true
+    lastHeartbeatTime = Date.now()
+    console.log('[BLE] ✅ 设备连接成功!')
+    
+    // 启动心跳检测
+    startHeartbeatCheck()
+    
+    // 通知主进程蓝牙状态变化
+    window.api.notifyBluetoothStatusChanged(true, bluetoothDeviceName.value)
+    
+    return true
+  } catch (error) {
+    console.error('[BLE] 连接失败:', error.message)
+    cleanupConnection()
+    return false
+  }
+}
+
+/**
+ * 断开蓝牙连接
+ */
+const disconnectBluetooth = () => {
+  console.log('[BLE] 用户请求断开连接')
+  
+  if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+    bluetoothDevice.gatt.disconnect()
+  }
+  
+  cleanupConnection()
+  window.api.notifyBluetoothStatusChanged(false, null)
+}
+
+/**
+ * 启动心跳检测
+ */
+const startHeartbeatCheck = () => {
+  if (heartbeatCheckInterval) {
+    clearInterval(heartbeatCheckInterval)
+  }
+  
+  console.log('[BLE] 启动心跳检测...')
+  
+  heartbeatCheckInterval = setInterval(() => {
+    if (!bluetoothConnected.value) {
+      return
+    }
+    
+    const timeSinceLastHeartbeat = Date.now() - lastHeartbeatTime
+    
+    if (timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
+      console.warn('[BLE] 心跳超时，视为断开连接')
+      handleConnectionLost()
+    }
+  }, 1000)
+}
+
+/**
+ * 处理连接丢失
+ */
+const handleConnectionLost = () => {
+  console.log('[BLE] 连接丢失，清理状态...')
+  cleanupConnection()
+  
+  // 通知主进程
+  window.api.notifyBluetoothStatusChanged(false, null)
+  
+  // 如果正在录音，停止
+  if (isRecording.value) {
+    stopRecording()
+  }
+  
+  // 2秒后尝试自动重连
+  console.log('[BLE] 2秒后尝试自动重连...')
+  setTimeout(() => autoReconnect(), 2000)
+}
+
+/**
+ * 清理连接状态
+ */
+const cleanupConnection = () => {
+  bluetoothConnected.value = false
+  bluetoothServer = null
+  bleService = null
+  serialWriteCharacteristic = null
+  serialNotifyCharacteristic = null
+  isRecording.value = false
+  
+  if (heartbeatCheckInterval) {
+    clearInterval(heartbeatCheckInterval)
+    heartbeatCheckInterval = null
+  }
+}
+
+/**
+ * BLE 数据接收回调
+ * 处理设备发送的所有通知
+ */
+const onBleDataReceived = (event) => {
+  const value = event.target.value
+  const data = new Uint8Array(value.buffer)
+  const hexData = bytesToHex(data)
+  
+  // 更新心跳时间
+  lastHeartbeatTime = Date.now()
+  
+  console.log('[BLE] 收到数据:', hexData, '长度:', data.length)
+  
+  // 解析响应（统一转小写比较）
+  const hexLower = hexData.toLowerCase()
+  
+  if (hexLower.startsWith(BLE_RESP.MAC_PREFIX)) {
+    // MAC 地址响应: 055d0507 + 6字节MAC
+    if (data.length >= 10) {
+      const macBytes = data.slice(4, 10)
+      const macAddress = Array.from(macBytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(':')
+      console.log('[BLE] ✅ 设备 MAC 地址:', macAddress)
+    }
+  } else if (hexLower === BLE_RESP.VOICE_START_OK) {
+    // 语音模式启动成功: 055d07014f4b
+    console.log('[BLE] ✅ 语音模式启动成功')
+  } else if (hexLower === BLE_RESP.VOICE_STOP_OK) {
+    // 语音模式停止成功: 055d07004f4b
+    console.log('[BLE] ✅ 语音模式停止成功')
+  } else if (hexLower === BLE_RESP.RECORDING_START) {
+    // 设备通知开始录音（单击/长按）: 055d070101
+    console.log('[BLE] 🎤 设备通知: 开始录音')
+    startRecording()
+  } else if (hexLower === BLE_RESP.RECORDING_STOP) {
+    // 设备通知停止录音（松开）: 055d070100
+    console.log('[BLE] 🛑 设备通知: 停止录音')
+    stopRecording()
+  } else {
+    console.log('[BLE] 未识别的数据:', hexLower)
+  }
+}
+
+/**
+ * 蓝牙设备断开连接回调 (GATT 事件)
+ */
+const onBluetoothDisconnected = (event) => {
+  console.log('[BLE] ⚠️ GATT 断开连接事件（可能是设备主动断开或超出范围）')
+  handleConnectionLost()
+}
+
+// ==================== 录音控制 ====================
+/**
+ * 开始录音（由设备长按触发）
+ */
+const startRecording = () => {
+  if (!currentMode.value) {
+    console.log('[BLE] 未选择模式，忽略录音请求')
+    return
+  }
+  
+  if (isRecording.value) {
+    console.log('[BLE] 已在录音中，忽略')
+    return
+  }
+  
+  console.log('[BLE] 启动录音，模式:', currentMode.value)
+  isRecording.value = true
+  
+  // 通知主进程开始录音
+  window.electron.ipcRenderer.send('ble-recording-start', {
+    mode: currentMode.value,
+    sourceIsoCode: sourceIsoCode.value,
+    targetIsoCode: targetIsoCode.value,
+    sourceLangName: getLangName(sourceIsoCode.value),
+    targetLangName: getLangName(targetIsoCode.value)
+  })
+}
+
+/**
+ * 停止录音（由设备松开触发）
+ */
+const stopRecording = () => {
+  if (!isRecording.value) {
+    console.log('[BLE] 未在录音，忽略')
+    return
+  }
+  
+  console.log('[BLE] 停止录音')
+  isRecording.value = false
+  
+  // 通知主进程停止录音
+  window.electron.ipcRenderer.send('ble-recording-stop')
+}
+
 // ==================== 生命周期 ====================
-onMounted(() => {
+onMounted(async () => {
+  console.log('[Home] 组件挂载')
+  
+  // ========== 蓝牙诊断信息 ==========
+  console.log('[BLE-Diag] ========== 蓝牙诊断开始 ==========')
+  
+  // 检查蓝牙 API 是否可用
+  if ('bluetooth' in navigator) {
+    console.log('[BLE-Diag] Web Bluetooth API 可用')
+    
+    // 尝试获取已授权的设备
+    try {
+      const devices = await navigator.bluetooth.getDevices()
+      console.log('[BLE-Diag] 已授权设备数量:', devices.length)
+      
+      for (const device of devices) {
+        console.log('[BLE-Diag] 设备信息:', {
+          name: device.name,
+          id: device.id,
+          gattConnected: device.gatt?.connected
+        })
+        
+        // 如果设备已连接，尝试获取服务信息
+        if (device.gatt?.connected) {
+          console.log('[BLE-Diag] 设备 GATT 已连接，尝试获取服务...')
+          try {
+            const services = await device.gatt.getPrimaryServices()
+            console.log('[BLE-Diag] 设备服务数量:', services.length)
+            for (const service of services) {
+              console.log('[BLE-Diag] 服务 UUID:', service.uuid)
+            }
+          } catch (e) {
+            console.log('[BLE-Diag] 获取服务失败:', e.message)
+          }
+        }
+      }
+    } catch (error) {
+      console.log('[BLE-Diag] 获取已授权设备失败:', error.message)
+    }
+  } else {
+    console.log('[BLE-Diag] Web Bluetooth API 不可用')
+  }
+  
+  console.log('[BLE-Diag] ========== 蓝牙诊断结束 ==========')
+  
+  // 尝试自动重连之前授权的设备
+  autoReconnect()
+  
   // 获取语言列表
   fetchLanguageList()
+
+  // 获取初始蓝牙状态
+  try {
+    const btStatus = await window.api.getBluetoothStatus()
+    bluetoothConnected.value = btStatus.connected
+    if (btStatus.deviceName) {
+      bluetoothDeviceName.value = btStatus.deviceName
+    }
+  } catch (error) {
+    console.error('[Home] 获取蓝牙状态失败:', error)
+  }
+  
+  // 监听蓝牙连接状态变化
+  window.api.onBluetoothConnectionChanged((data) => {
+    bluetoothConnected.value = data.connected
+    if (data.deviceName) {
+      bluetoothDeviceName.value = data.deviceName
+    }
+    // 如果断开连接，取消当前模式
+    if (!data.connected && currentMode.value) {
+      cancelMode()
+    }
+  })
 
   // 监听录音状态变化
   window.electron.ipcRenderer.on('recording-state-changed', onRecordingStateChanged)
@@ -305,6 +823,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  console.log('[Home] 组件卸载，清理资源')
+  
+  // 清理定时器
+  if (heartbeatCheckInterval) {
+    clearInterval(heartbeatCheckInterval)
+  }
+  
   // 清理事件监听
   window.electron.ipcRenderer.removeAllListeners('recording-state-changed')
   window.electron.ipcRenderer.removeAllListeners('mode-selected')
@@ -335,8 +860,67 @@ onUnmounted(() => {
 .title {
   font-size: 2.5rem;
   font-weight: 700;
-  margin-bottom: 50px;
+  margin-bottom: 20px;
   color: #fff;
+}
+
+/* 蓝牙状态区域 */
+.bluetooth-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 82, 82, 0.15);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+  padding: 10px 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
+}
+
+.bluetooth-status.connected {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.bt-icon {
+  font-size: 1.2rem;
+}
+
+.bt-text {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.bt-btn {
+  background: rgba(100, 200, 255, 0.2);
+  color: #64c8ff;
+  border: 1px solid rgba(100, 200, 255, 0.3);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bt-btn:hover:not(:disabled) {
+  background: rgba(100, 200, 255, 0.3);
+  border-color: rgba(100, 200, 255, 0.5);
+}
+
+.bt-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bt-btn.disconnect {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.bt-btn.disconnect:hover {
+  background: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.5);
 }
 
 /* 卡片容器 */
@@ -458,6 +1042,18 @@ onUnmounted(() => {
 
 .card-selected:hover {
   border-color: rgba(74, 222, 128, 0.8);
+}
+
+/* 卡片禁用状态（蓝牙未连接） */
+.card-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.card-disabled:hover {
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* 卡片图标 */

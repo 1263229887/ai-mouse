@@ -12,6 +12,14 @@ let mainWindow = null
 // 弹窗窗口引用（用于打字机效果和翻译效果）
 let popupWindow = null
 
+// ==================== 蓝牙设备状态 ====================
+// 蓝牙设备名称（Musttrue Pencil）
+const BLUETOOTH_DEVICE_NAME = 'Musttrue Pencil'
+// 蓝牙连接状态
+let bluetoothConnected = false
+// 蓝牙设备引用
+let bluetoothDevice = null
+
 // ==================== 模式状态管理 ====================
 // 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
 let currentMode = null
@@ -216,6 +224,32 @@ app.whenReady().then(() => {
     return logger.getLogPath()
   })
 
+  // ==================== 蓝牙状态 IPC ====================
+  /**
+   * 获取蓝牙连接状态
+   */
+  ipcMain.handle('get-bluetooth-status', () => {
+    return {
+      connected: bluetoothConnected,
+      deviceName: bluetoothDevice ? BLUETOOTH_DEVICE_NAME : null
+    }
+  })
+
+  /**
+   * 更新蓝牙连接状态（由渲染进程调用）
+   */
+  ipcMain.on('bluetooth-status-changed', (event, { connected, deviceName }) => {
+    logger.info('Bluetooth', '蓝牙状态变化', { connected, deviceName })
+    bluetoothConnected = connected
+    if (!connected) {
+      bluetoothDevice = null
+    }
+    // 通知所有窗口蓝牙状态变化
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('bluetooth-connection-changed', { connected, deviceName })
+    }
+  })
+
   // ==================== 点击卡片触发AI输入 ====================
   /**
    * 监听渲染进程点击卡片事件
@@ -337,6 +371,100 @@ app.whenReady().then(() => {
     }
   })
 
+  // ==================== BLE 录音控制 ====================
+  /**
+   * 蓝牙笔长按开始录音
+   */
+  ipcMain.on('ble-recording-start', (event, data) => {
+    logger.info('Main', 'BLE 录音开始', data)
+    
+    if (!currentMode) {
+      logger.warn('Main', '未选择模式，忽略录音请求')
+      return
+    }
+    
+    isRecording = true
+    
+    // 更新语言信息
+    if (data.sourceIsoCode) sourceIsoCode = data.sourceIsoCode
+    if (data.targetIsoCode) targetIsoCode = data.targetIsoCode
+    if (data.sourceLangName) sourceLangName = data.sourceLangName
+    if (data.targetLangName) targetLangName = data.targetLangName
+    
+    // 根据模式创建对应窗口
+    const route = currentMode === 'typing' ? '/typing' : '/translate'
+    createPopupWindow(route)
+    
+    // 通知主窗口状态变化
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-state-changed', { isRecording: true })
+    }
+    
+    // 统一使用翻译接口的 WebSocket 地址
+    const wsUrl = 'ws://chat.danaai.net/asr/speechTranslate'
+    
+    let extraParams
+    if (currentMode === 'translate') {
+      // 翻译模式：根据选择的语言设置参数
+      extraParams = {
+        originalCode: sourceIsoCode,
+        sourceLanguage: sourceIsoCode,
+        targetLanguage: targetIsoCode,
+        openTranslate: true,
+        displayDirection: `${sourceLangName} → ${targetLangName}`
+      }
+    } else {
+      // 语音输入模式：使用中文识别，不开启翻译
+      extraParams = {
+        originalCode: 'ZH',
+        sourceLanguage: 'ZH',
+        targetLanguage: 'EN',
+        openTranslate: false
+      }
+    }
+    
+    logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
+    
+    if (popupWindow) {
+      const sendMessage = () => {
+        if (popupWindow && !popupWindow.isDestroyed()) {
+          logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
+          popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
+        }
+      }
+      
+      popupWindow.webContents.once('did-finish-load', () => {
+        logger.info('Main', 'popupWindow 加载完成')
+        sendMessage()
+      })
+      
+      setTimeout(() => {
+        if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
+          logger.info('Main', 'popupWindow 延时发送消息')
+          sendMessage()
+        }
+      }, 500)
+    }
+  })
+  
+  /**
+   * 蓝牙笔松开停止录音
+   */
+  ipcMain.on('ble-recording-stop', () => {
+    logger.info('Main', 'BLE 录音停止')
+    isRecording = false
+    
+    // 通知主窗口状态变化
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-state-changed', { isRecording: false })
+    }
+    
+    // 发送停止录音消息给弹窗
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.webContents.send('stop-speech-recognition')
+    }
+  })
+
   // ==================== 打字完成事件处理 ====================
   /**
    * 监听打字机窗口完成事件
@@ -365,7 +493,106 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Ctrl+Shift+L: 打开日志文件夹
+  // ==================== 蓝牙设备选择处理 ====================
+  /**
+   * 处理蓝牙设备选择请求
+   * 弹出系统选择对话框，让用户手动选择设备
+   */
+  let scanEventCount = 0
+  let deviceSelectCallback = null
+  let scanTimeoutTimer = null  // 超时定时器引用
+  
+  // 清理扫描状态
+  const clearScanState = () => {
+    deviceSelectCallback = null
+    if (scanTimeoutTimer) {
+      clearTimeout(scanTimeoutTimer)
+      scanTimeoutTimer = null
+    }
+  }
+  
+  // 展示设备选择对话框
+  const showDeviceSelector = (devices, callback) => {
+    const { dialog } = require('electron')
+    
+    // 清理状态
+    clearScanState()
+    
+    // 过滤有名称的设备
+    const namedDevices = devices.filter(d => d.deviceName && !d.deviceName.includes('未知或不支持'))
+    
+    if (namedDevices.length === 0) {
+      logger.info('Bluetooth', '没有发现有名称的设备，显示所有设备')
+      // 显示所有设备
+      const allDeviceNames = devices.map((d, i) => `${i + 1}. ${d.deviceName || d.deviceId}`)
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '蓝牙设备',
+        message: `扫描到 ${devices.length} 个设备，但没有发现 Musttrue Pencil。\n\n请确保设备已开启并在范围内。`,
+        buttons: ['确定']
+      })
+      callback('')
+      return
+    }
+    
+    // 显示设备选择对话框
+    const deviceNames = namedDevices.map((d, i) => `${i + 1}. ${d.deviceName}`)
+    dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: '选择蓝牙设备',
+      message: `发现 ${namedDevices.length} 个设备，请选择你的 Musttrue Pencil:\n\n${deviceNames.join('\n')}`,
+      buttons: deviceNames,
+      cancelId: -1
+    }).then(result => {
+      if (result.response >= 0 && result.response < namedDevices.length) {
+        const selected = namedDevices[result.response]
+        logger.info('Bluetooth', `用户选择了设备: ${selected.deviceName}`)
+        callback(selected.deviceId)
+      } else {
+        callback('')
+      }
+    })
+  }
+  
+  mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
+    event.preventDefault()
+    scanEventCount++
+    
+    logger.info('Bluetooth', `=== 扫描事件 #${scanEventCount} ===`)
+    logger.info('Bluetooth', `扫描到设备数量: ${devices.length}`)
+    
+    const namedDevices = devices.filter(d => d.deviceName && !d.deviceName.includes('未知或不支持'))
+    logger.info('Bluetooth', `有名称设备: ${namedDevices.map(d => d.deviceName).join(', ') || '无'}`)
+    
+    // 查找 Musttrue 设备
+    const musttrueDevice = devices.find(d => d.deviceName && d.deviceName.includes('Musttrue'))
+    if (musttrueDevice) {
+      logger.info('Bluetooth', `✅ 找到 Musttrue 设备: ${musttrueDevice.deviceName}`)
+      // 清理状态，取消超时定时器
+      clearScanState()
+      callback(musttrueDevice.deviceId)
+      return
+    }
+    
+    // 如果有命名设备超过 3 个，弹出选择对话框
+    if (namedDevices.length >= 3) {
+      showDeviceSelector(devices, callback)
+      return
+    }
+    
+    // 继续等待更多设备
+    deviceSelectCallback = callback
+    
+    // 设置超时，15秒后弹出选择对话框
+    scanTimeoutTimer = setTimeout(() => {
+      if (deviceSelectCallback === callback) {
+        logger.info('Bluetooth', '扫描超时，弹出设备选择对话框')
+        showDeviceSelector(devices, callback)
+      }
+    }, 15000)
+  })
+
+  // Ctrl+Shift+T: 打开日志文件夹
   globalShortcut.register('Ctrl+Shift+T', () => {
     const logDir = logger.getLogDir()
     logger.info('Main', '快捷键 Ctrl+Shift+T 被按下，打开日志文件夹', logDir)
@@ -373,6 +600,7 @@ app.whenReady().then(() => {
       shell.openPath(logDir)
     }
   })
+  logger.info('Main', '快捷键 Ctrl+Shift+T 已注册')
 
   // Ctrl+Shift+D: 打印调试日志
   globalShortcut.register('Ctrl+Shift+D', () => {
@@ -406,23 +634,7 @@ app.whenReady().then(() => {
       })
     }
   })
-
-  // ==================== 快捷键控制录音 ====================
-  /**
-   * 使用 Ctrl+Shift+F (Windows/Linux) 或 Command+Shift+F (macOS) 启动/停止录音
-   * CommandOrControl 会自动适配不同平台
-   */
-  globalShortcut.register('CommandOrControl+Shift+F', () => {
-    // 检查是否选中了模式
-    if (!currentMode) {
-      logger.info('Main', '快捷键按下但未选择模式，忽略')
-      return
-    }
-
-    logger.info('Main', '快捷键 Ctrl/Cmd+Shift+F 按下', { currentMode, isRecording })
-    handleRecordingToggle()
-  })
-  logger.info('Main', '快捷键 CommandOrControl+Shift+F 已注册')
+  logger.info('Main', '快捷键 Ctrl+Shift+D 已注册')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -445,103 +657,6 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   logger.info('Main', '应用退出，已清理资源')
 })
-
-// ==================== 快捷键录音控制逻辑 ====================
-/**
- * 处理快捷键切换录音状态
- */
-function handleRecordingToggle() {
-  if (!currentMode) return
-
-  if (!isRecording) {
-    // 启动录音
-    startRecording()
-  } else {
-    // 停止录音
-    stopRecording()
-  }
-}
-
-/**
- * 启动录音
- */
-function startRecording() {
-  logger.info('Main', '快捷键启动录音', { currentMode })
-  isRecording = true
-
-  // 根据模式创建对应窗口
-  const route = currentMode === 'typing' ? '/typing' : '/translate'
-  createPopupWindow(route)
-
-  // 通知主窗口状态变化
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('recording-state-changed', { isRecording: true })
-  }
-
-  // 统一使用翻译接口的 WebSocket 地址
-  const wsUrl = 'ws://chat.danaai.net/asr/speechTranslate'
-  
-  let extraParams
-  if (currentMode === 'translate') {
-    // 翻译模式：根据选择的语言设置参数
-    extraParams = {
-      originalCode: sourceIsoCode,
-      sourceLanguage: sourceIsoCode,
-      targetLanguage: targetIsoCode,
-      openTranslate: true,
-      displayDirection: `${sourceLangName} → ${targetLangName}`
-    }
-  } else {
-    // 语音输入模式：使用中文识别，不开启翻译
-    extraParams = {
-      originalCode: 'ZH',
-      sourceLanguage: 'ZH',
-      targetLanguage: 'EN',
-      openTranslate: false
-    }
-  }
-
-  logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
-
-  if (popupWindow) {
-    const sendMessage = () => {
-      if (popupWindow && !popupWindow.isDestroyed()) {
-        logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
-        popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
-      }
-    }
-
-    popupWindow.webContents.once('did-finish-load', () => {
-      logger.info('Main', 'popupWindow 加载完成')
-      sendMessage()
-    })
-
-    setTimeout(() => {
-      if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
-        logger.info('Main', 'popupWindow 延时发送消息')
-        sendMessage()
-      }
-    }, 500)
-  }
-}
-
-/**
- * 停止录音
- */
-function stopRecording() {
-  logger.info('Main', '快捷键停止录音')
-  isRecording = false
-
-  // 通知主窗口状态变化
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('recording-state-changed', { isRecording: false })
-  }
-
-  // 发送停止录音消息给弹窗
-  if (popupWindow && !popupWindow.isDestroyed()) {
-    popupWindow.webContents.send('stop-speech-recognition')
-  }
-}
 
 // ==================== 模拟粘贴操作 ====================
 /**

@@ -59,6 +59,26 @@ const api = {
    */
   dragPopup: (deltaX, deltaY) => {
     ipcRenderer.send('drag-popup', { deltaX, deltaY })
+  },
+  
+  // ==================== 蓝牙相关 API ====================
+  /**
+   * 获取蓝牙连接状态
+   */
+  getBluetoothStatus: () => {
+    return ipcRenderer.invoke('get-bluetooth-status')
+  },
+  /**
+   * 通知主进程蓝牙状态变化
+   */
+  notifyBluetoothStatusChanged: (connected, deviceName) => {
+    ipcRenderer.send('bluetooth-status-changed', { connected, deviceName })
+  },
+  /**
+   * 监听蓝牙连接状态变化
+   */
+  onBluetoothConnectionChanged: (callback) => {
+    ipcRenderer.on('bluetooth-connection-changed', (event, data) => callback(data))
   }
 }
 

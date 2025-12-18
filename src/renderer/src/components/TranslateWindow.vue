@@ -225,7 +225,7 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
 
     speechRecognizer.onStateChange((state) => {
       if (state === 0) {
-        connectionStatus.value = '录音中，按 Ctrl+Shift+F 停止'
+        connectionStatus.value = '录音中，松开蓝牙笔停止'
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {
