@@ -495,63 +495,18 @@ app.whenReady().then(() => {
 
   // ==================== 蓝牙设备选择处理 ====================
   /**
-   * 处理蓝牙设备选择请求
-   * 弹出系统选择对话框，让用户手动选择设备
+   * 处理蓝牙设备扫描
+   * 自动连接 Musttrue 设备，超时后提示用户
    */
   let scanEventCount = 0
-  let deviceSelectCallback = null
-  let scanTimeoutTimer = null  // 超时定时器引用
+  let scanTimeoutTimer = null
   
   // 清理扫描状态
   const clearScanState = () => {
-    deviceSelectCallback = null
     if (scanTimeoutTimer) {
       clearTimeout(scanTimeoutTimer)
       scanTimeoutTimer = null
     }
-  }
-  
-  // 展示设备选择对话框
-  const showDeviceSelector = (devices, callback) => {
-    const { dialog } = require('electron')
-    
-    // 清理状态
-    clearScanState()
-    
-    // 过滤有名称的设备
-    const namedDevices = devices.filter(d => d.deviceName && !d.deviceName.includes('未知或不支持'))
-    
-    if (namedDevices.length === 0) {
-      logger.info('Bluetooth', '没有发现有名称的设备，显示所有设备')
-      // 显示所有设备
-      const allDeviceNames = devices.map((d, i) => `${i + 1}. ${d.deviceName || d.deviceId}`)
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: '蓝牙设备',
-        message: `扫描到 ${devices.length} 个设备，但没有发现 Musttrue Pencil。\n\n请确保设备已开启并在范围内。`,
-        buttons: ['确定']
-      })
-      callback('')
-      return
-    }
-    
-    // 显示设备选择对话框
-    const deviceNames = namedDevices.map((d, i) => `${i + 1}. ${d.deviceName}`)
-    dialog.showMessageBox(mainWindow, {
-      type: 'question',
-      title: '选择蓝牙设备',
-      message: `发现 ${namedDevices.length} 个设备，请选择你的 Musttrue Pencil:\n\n${deviceNames.join('\n')}`,
-      buttons: deviceNames,
-      cancelId: -1
-    }).then(result => {
-      if (result.response >= 0 && result.response < namedDevices.length) {
-        const selected = namedDevices[result.response]
-        logger.info('Bluetooth', `用户选择了设备: ${selected.deviceName}`)
-        callback(selected.deviceId)
-      } else {
-        callback('')
-      }
-    })
   }
   
   mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
@@ -568,28 +523,26 @@ app.whenReady().then(() => {
     const musttrueDevice = devices.find(d => d.deviceName && d.deviceName.includes('Musttrue'))
     if (musttrueDevice) {
       logger.info('Bluetooth', `✅ 找到 Musttrue 设备: ${musttrueDevice.deviceName}`)
-      // 清理状态，取消超时定时器
       clearScanState()
       callback(musttrueDevice.deviceId)
       return
     }
     
-    // 如果有命名设备超过 3 个，弹出选择对话框
-    if (namedDevices.length >= 3) {
-      showDeviceSelector(devices, callback)
-      return
+    // 设置超时，10秒后提示用户可能被电脑占用
+    if (!scanTimeoutTimer) {
+      scanTimeoutTimer = setTimeout(() => {
+        const { dialog } = require('electron')
+        clearScanState()
+        logger.info('Bluetooth', '扫描超时，未找到设备')
+        dialog.showMessageBox(mainWindow, {
+          type: 'warning',
+          title: '连接失败',
+          message: '未找到蓝牙笔\n\n可能原因：\n• 蓝牙笔已被电脑自动连接\n• 蓝牙笔未开机\n\n请在电脑蓝牙设置中删除或断开该设备后重试',
+          buttons: ['确定']
+        })
+        callback('')
+      }, 10000)
     }
-    
-    // 继续等待更多设备
-    deviceSelectCallback = callback
-    
-    // 设置超时，15秒后弹出选择对话框
-    scanTimeoutTimer = setTimeout(() => {
-      if (deviceSelectCallback === callback) {
-        logger.info('Bluetooth', '扫描超时，弹出设备选择对话框')
-        showDeviceSelector(devices, callback)
-      }
-    }, 15000)
   })
 
   // Ctrl+Shift+T: 打开日志文件夹

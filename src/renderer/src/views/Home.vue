@@ -9,9 +9,13 @@
       <span class="bt-text">{{ bluetoothStatusText }}</span>
       <!-- 连接按钮 -->
       <button v-if="!bluetoothConnected" class="bt-btn" @click="scanAndConnect" :disabled="isConnecting">
-        {{ isConnecting ? '扫描中...' : '授权蓝牙' }}
+        {{ isConnecting ? '连接中...' : '授权并连接' }}
       </button>
       <button v-else class="bt-btn disconnect" @click="disconnectBluetooth">断开连接</button>
+    </div>
+    <!-- 操作提示 -->
+    <div class="bt-hint" v-if="!bluetoothConnected && !isConnecting">
+      长按笔帽开机 → 点击授权并连接（无需先在电脑蓝牙配对）
     </div>
     
     <div class="cards">
@@ -22,13 +26,13 @@
         <div class="card-icon">⌨️</div>
         <h2 class="card-title">语音输入</h2>
         <p class="card-desc">语音实时识别,追加AI修正并输入</p>
-        <div class="shortcut" v-if="!bluetoothConnected">请先授权蓝牙</div>
+        <div class="shortcut" v-if="!bluetoothConnected">请先授权并连接蓝牙</div>
         <div class="shortcut" v-else-if="currentMode !== 'typing'">单击选择此模式</div>
-        <div class="shortcut active" v-else>长按蓝牙笔开始录音</div>
+        <div class="shortcut active" v-else>长按蓝牙笔帽开始录音</div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'typing'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔帽开始录音' }}
         </div>
       </div>
       <!-- AI翻译卡片 -->
@@ -85,13 +89,13 @@
         <div class="card-icon">🌐</div>
         <h2 class="card-title">语音翻译</h2>
         <p class="card-desc">语音实时识别,自动翻译并输入</p>
-        <div class="shortcut" v-if="!bluetoothConnected">请先授权蓝牙</div>
+        <div class="shortcut" v-if="!bluetoothConnected">请先授权并连接蓝牙</div>
         <div class="shortcut" v-else-if="currentMode !== 'translate'">单击选择此模式</div>
-        <div class="shortcut active" v-else>长按蓝牙笔开始录音</div>
+        <div class="shortcut active" v-else>长按蓝牙笔帽开始录音</div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'translate'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，长按蓝牙笔帽开始录音' }}
         </div>
       </div>
     </div>
@@ -107,7 +111,7 @@
  * Home.vue - 首页组件
  * 显示功能卡片，用于选择不同的AI模拟功能
  * - 单击卡片选择模式
- * - 授权蓝牙后，长按蓝牙笔开始录音，松开停止
+ * - 授权蓝牙后，长按蓝牙笔帽开始录音，松开停止
  */
 
 import { onMounted, onUnmounted, ref, computed } from 'vue'
@@ -170,7 +174,7 @@ const BLE_RESP = {
 // 蓝牙状态文本
 const bluetoothStatusText = computed(() => {
   if (isConnecting.value) {
-    return '正在扫描蓝牙设备...'
+    return '正在连接蓝牙设备...'
   }
   if (bluetoothConnected.value) {
     return `已连接: ${bluetoothDeviceName.value || 'Musttrue Pencil'}`
@@ -429,23 +433,63 @@ const sendBleCommand = async (cmdHex) => {
 
 /**
  * 扫描并连接蓝牙设备
- * 由于某些设备在广播中不包含服务 UUID，使用 acceptAllDevices 模式
- * 在连接后验证服务是否可用
+ * 优先尝试连接已授权的设备，如果失败再扫描新设备
  */
 const scanAndConnect = async () => {
   if (isConnecting.value) return
   
-  console.log('[BLE] 开始扫描蓝牙设备...')
-  console.log('[BLE] 使用 acceptAllDevices 模式（设备可能在广播中不包含服务 UUID）')
   isConnecting.value = true
+  console.log('[BLE] 开始连接流程...')
   
   try {
-    // 使用 acceptAllDevices 模式，因为某些 BLE 设备在广播中不包含服务 UUID
-    // 在连接后再验证 0xff00 服务是否可用
-    console.log('[BLE] 调用 requestDevice...')
+    // Step 1: 先尝试连接已授权的设备（如果 API 可用）
+    const savedId = localStorage.getItem('ble-device-id')
+    if (savedId && typeof navigator.bluetooth.getDevices === 'function') {
+      console.log('[BLE] 发现已授权设备 ID，尝试直接连接...')
+      
+      try {
+        const devices = await navigator.bluetooth.getDevices()
+        const savedDevice = devices.find(d => d.id === savedId)
+        
+        if (savedDevice) {
+          console.log('[BLE] 找到已授权设备:', savedDevice.name)
+          
+          try {
+            // 尝试直接连接
+            const success = await connectToDevice(savedDevice)
+            if (success) {
+              console.log('[BLE] ✅ 已授权设备连接成功!')
+              return
+            }
+          } catch (error) {
+            console.log('[BLE] 已授权设备连接失败:', error.message)
+            // 如果是系统占用错误，提示用户
+            if (error.message.includes('GATT') || error.message.includes('connect')) {
+              const shouldRetry = confirm(
+                '检测到设备可能已被 Windows 系统占用。\n\n' +
+                '请在 Windows 蓝牙设置中断开 "Musttrue Pencil" 的连接，\n' +
+                '然后点击“确定”重试。\n\n' +
+                '点击“取消”将扫描新设备。'
+              )
+              if (shouldRetry) {
+                isConnecting.value = false
+                setTimeout(() => scanAndConnect(), 1000)
+                return
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log('[BLE] getDevices 调用失败:', error.message)
+      }
+    }
+    
+    // Step 2: 扫描新设备
+    console.log('[BLE] 开始扫描蓝牙设备...')
+    
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: [BLE_UUID.SERVICE]  // 允许访问 0xff00 服务
+      optionalServices: [BLE_UUID.SERVICE]
     })
     
     console.log('[BLE] 设备已选择:', device.name, device.id)
@@ -459,7 +503,6 @@ const scanAndConnect = async () => {
   } catch (error) {
     console.error('[BLE] 扫描/连接失败:', error.name, error.message)
     if (error.name !== 'NotFoundError') {
-      // NotFoundError 是用户取消或未找到设备
       alert('蓝牙连接失败: ' + error.message)
     }
   } finally {
@@ -472,6 +515,12 @@ const scanAndConnect = async () => {
  * 页面加载时尝试连接之前授权过的设备
  */
 const autoReconnect = async () => {
+  // 检查 getDevices API 是否可用
+  if (typeof navigator.bluetooth?.getDevices !== 'function') {
+    console.log('[BLE] getDevices API 不可用，跳过自动重连')
+    return
+  }
+  
   const savedId = localStorage.getItem('ble-device-id')
   if (!savedId) {
     console.log('[BLE] 没有保存的设备 ID，跳过自动重连')
@@ -749,35 +798,38 @@ onMounted(async () => {
   // 检查蓝牙 API 是否可用
   if ('bluetooth' in navigator) {
     console.log('[BLE-Diag] Web Bluetooth API 可用')
+    console.log('[BLE-Diag] getDevices API:', typeof navigator.bluetooth.getDevices === 'function' ? '可用' : '不可用')
     
-    // 尝试获取已授权的设备
-    try {
-      const devices = await navigator.bluetooth.getDevices()
-      console.log('[BLE-Diag] 已授权设备数量:', devices.length)
-      
-      for (const device of devices) {
-        console.log('[BLE-Diag] 设备信息:', {
-          name: device.name,
-          id: device.id,
-          gattConnected: device.gatt?.connected
-        })
+    // 尝试获取已授权的设备（如果 API 可用）
+    if (typeof navigator.bluetooth.getDevices === 'function') {
+      try {
+        const devices = await navigator.bluetooth.getDevices()
+        console.log('[BLE-Diag] 已授权设备数量:', devices.length)
         
-        // 如果设备已连接，尝试获取服务信息
-        if (device.gatt?.connected) {
-          console.log('[BLE-Diag] 设备 GATT 已连接，尝试获取服务...')
-          try {
-            const services = await device.gatt.getPrimaryServices()
-            console.log('[BLE-Diag] 设备服务数量:', services.length)
-            for (const service of services) {
-              console.log('[BLE-Diag] 服务 UUID:', service.uuid)
+        for (const device of devices) {
+          console.log('[BLE-Diag] 设备信息:', {
+            name: device.name,
+            id: device.id,
+            gattConnected: device.gatt?.connected
+          })
+          
+          // 如果设备已连接，尝试获取服务信息
+          if (device.gatt?.connected) {
+            console.log('[BLE-Diag] 设备 GATT 已连接，尝试获取服务...')
+            try {
+              const services = await device.gatt.getPrimaryServices()
+              console.log('[BLE-Diag] 设备服务数量:', services.length)
+              for (const service of services) {
+                console.log('[BLE-Diag] 服务 UUID:', service.uuid)
+              }
+            } catch (e) {
+              console.log('[BLE-Diag] 获取服务失败:', e.message)
             }
-          } catch (e) {
-            console.log('[BLE-Diag] 获取服务失败:', e.message)
           }
         }
+      } catch (error) {
+        console.log('[BLE-Diag] 获取已授权设备失败:', error.message)
       }
-    } catch (error) {
-      console.log('[BLE-Diag] 获取已授权设备失败:', error.message)
     }
   } else {
     console.log('[BLE-Diag] Web Bluetooth API 不可用')
@@ -921,6 +973,14 @@ onUnmounted(() => {
 .bt-btn.disconnect:hover {
   background: rgba(248, 113, 113, 0.3);
   border-color: rgba(248, 113, 113, 0.5);
+}
+
+/* 操作提示 */
+.bt-hint {
+  color: #888;
+  font-size: 0.8rem;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 /* 卡片容器 */
