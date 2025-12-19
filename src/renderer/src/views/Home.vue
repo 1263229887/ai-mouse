@@ -1,7 +1,7 @@
 <template>
   <!-- 首页组件 - 功能卡片选择页面 -->
   <div class="container">
-    <h1 class="title">AI Mouse</h1>
+    <h1 class="title">AI智能电容笔</h1>
     
     <!-- 蓝牙连接状态区域 -->
     <div class="bluetooth-status" :class="{ 'connected': bluetoothConnected }">

@@ -1,7 +1,7 @@
 {
-  "name": "ai-mouse",
+  "name": "ai-smart-stylus",
   "version": "1.0.0",
-  "description": "An Electron application with Vue",
+  "description": "AI智能电容笔 - 语音输入与翻译工具",
   "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",

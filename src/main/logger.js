@@ -25,7 +25,7 @@ function initLogger() {
   // 日志文件名：使用日期
   const date = new Date()
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  logFilePath = join(logDir, `ai-mouse-${dateStr}.log`)
+  logFilePath = join(logDir, `ai-smart-stylus-${dateStr}.log`)
   
   // 写入日志启动标记
   const startMsg = `

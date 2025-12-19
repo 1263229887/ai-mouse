@@ -1,5 +1,5 @@
-appId: com.danaid.aimouse
-productName: DanaID AI鼠标
+appId: com.danaid.aismartpen
+productName: AI智能电容笔
 directories:
   buildResources: build
 files:
@@ -11,7 +11,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: ai-mouse
+  executableName: ai-smart-stylus
   icon: build/icon.png
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
