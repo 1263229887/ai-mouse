@@ -144,6 +144,12 @@ let lastHeartbeatTime = 0
 let heartbeatCheckInterval = null
 const HEARTBEAT_TIMEOUT = 30000 // 30秒无心跳视为断开（设备可能不会主动发送数据）
 
+// 心跳保活（主动发送心跳包维持连接）
+let keepAliveInterval = null
+let lastActivityTime = 0 // 最后一次主动操作时间
+const KEEP_ALIVE_INTERVAL = 5000 // 每 5 秒发送一次心跳包
+const IDLE_THRESHOLD = 3000 // 空闲 3 秒后才发送心跳
+
 // BLE UUID（使用小写 number 形式，最稳定）
 const BLE_UUID = {
   SERVICE: 0xff00,  // 串口主服务
@@ -424,6 +430,9 @@ const sendBleCommand = async (cmdHex) => {
     return false
   }
   try {
+    // 记录用户活动，暂停心跳包发送
+    recordActivity()
+    
     console.log('[BLE] 发送命令:', cmdHex)
     await serialWriteCharacteristic.writeValue(hexToBytes(cmdHex))
     return true
@@ -606,8 +615,9 @@ const connectToDevice = async (device) => {
     lastHeartbeatTime = Date.now()
     console.log('[BLE] ✅ 设备连接成功!')
     
-    // 启动心跳检测
+    // 启动心跳检测和心跳保活
     startHeartbeatCheck()
+    startKeepAlive()
     
     // 通知主进程蓝牙状态变化
     window.api.notifyBluetoothStatusChanged(true, bluetoothDeviceName.value)
@@ -659,6 +669,54 @@ const startHeartbeatCheck = () => {
 }
 
 /**
+ * 启动心跳保活（主动发送心跳包维持连接）
+ */
+const startKeepAlive = () => {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval)
+  }
+  
+  console.log('[BLE] 启动心跳保活...')
+  lastActivityTime = Date.now()
+  
+  keepAliveInterval = setInterval(async () => {
+    if (!bluetoothConnected.value || !serialWriteCharacteristic) {
+      return
+    }
+    
+    // 检查是否空闲足够时间
+    const timeSinceLastActivity = Date.now() - lastActivityTime
+    
+    if (timeSinceLastActivity >= IDLE_THRESHOLD) {
+      // 发送心跳包（使用读MAC命令作为心跳）
+      try {
+        await serialWriteCharacteristic.writeValue(hexToBytes(BLE_CMD.READ_MAC))
+        // 不打印日志，避免刷屏
+      } catch (error) {
+        console.warn('[BLE] 心跳包发送失败:', error.message)
+      }
+    }
+  }, KEEP_ALIVE_INTERVAL)
+}
+
+/**
+ * 停止心跳保活
+ */
+const stopKeepAlive = () => {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval)
+    keepAliveInterval = null
+  }
+}
+
+/**
+ * 记录用户活动（调用此函数后会暂停心跳包发送）
+ */
+const recordActivity = () => {
+  lastActivityTime = Date.now()
+}
+
+/**
  * 处理连接丢失
  */
 const handleConnectionLost = () => {
@@ -689,10 +747,12 @@ const cleanupConnection = () => {
   serialNotifyCharacteristic = null
   isRecording.value = false
   
+  // 停止心跳检测和心跳保活
   if (heartbeatCheckInterval) {
     clearInterval(heartbeatCheckInterval)
     heartbeatCheckInterval = null
   }
+  stopKeepAlive()
 }
 
 /**
