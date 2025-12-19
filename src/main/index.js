@@ -19,6 +19,8 @@ const BLUETOOTH_DEVICE_NAME = 'Musttrue Pencil'
 let bluetoothConnected = false
 // 蓝牙设备引用
 let bluetoothDevice = null
+// 已授权的蓝牙设备列表（用于持久化）
+const grantedBluetoothDevices = new Map()
 
 // ==================== 模式状态管理 ====================
 // 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
@@ -165,6 +167,11 @@ function createPopupWindow(route = '/typing', options = {}) {
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('allow-insecure-localhost')
 
+// 启用 Web Bluetooth getDevices() API，支持自动重连已授权设备
+app.commandLine.appendSwitch('enable-experimental-web-platform-features')
+app.commandLine.appendSwitch('enable-web-bluetooth-new-permissions-backend')
+// 注意：Web Bluetooth 的 requestDevice() 必须由用户手势触发，无法绕过
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -191,10 +198,81 @@ app.whenReady().then(() => {
   })
 
   // 处理权限检查
-  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    // 允许所有权限检查
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    // 对于蓝牙设备，检查是否在已授权列表中
+    if (permission === 'bluetooth') {
+      if (details.deviceId) {
+        const granted = grantedBluetoothDevices.has(details.deviceId)
+        logger.info('Bluetooth', '权限检查', { deviceId: details.deviceId, granted })
+        return granted
+      }
+      return true
+    }
+    // 允许其他权限检查
     return true
   })
+
+  // ==================== 蓝牙设备权限持久化 ====================
+  /**
+   * 设置设备权限处理器，用于持久化蓝牙设备授权
+   * 这是实现 getDevices() 返回已授权设备的关键
+   */
+  session.defaultSession.setDevicePermissionHandler((details) => {
+    logger.info('Bluetooth', '设备权限请求', { 
+      deviceType: details.deviceType,
+      deviceId: details.device?.deviceId,
+      deviceName: details.device?.deviceName
+    })
+    
+    if (details.deviceType === 'bluetooth') {
+      // 检查是否是已授权的设备
+      if (details.device?.deviceId && grantedBluetoothDevices.has(details.device.deviceId)) {
+        logger.info('Bluetooth', '设备已授权', { deviceId: details.device.deviceId })
+        return true
+      }
+      // 新设备，需要用户通过 requestDevice 授权
+      return false
+    }
+    return false
+  })
+
+  /**
+   * 保存已授权的蓝牙设备到本地文件
+   */
+  const saveGrantedDevices = () => {
+    try {
+      const devices = Array.from(grantedBluetoothDevices.entries()).map(([id, info]) => ({
+        deviceId: id,
+        ...info
+      }))
+      const configPath = join(app.getPath('userData'), 'bluetooth-devices.json')
+      require('fs').writeFileSync(configPath, JSON.stringify(devices, null, 2))
+      logger.info('Bluetooth', '已保存授权设备', { count: devices.length })
+    } catch (error) {
+      logger.error('Bluetooth', '保存授权设备失败', error.message)
+    }
+  }
+
+  /**
+   * 加载已授权的蓝牙设备
+   */
+  const loadGrantedDevices = () => {
+    try {
+      const configPath = join(app.getPath('userData'), 'bluetooth-devices.json')
+      if (require('fs').existsSync(configPath)) {
+        const devices = JSON.parse(require('fs').readFileSync(configPath, 'utf-8'))
+        devices.forEach(d => {
+          grantedBluetoothDevices.set(d.deviceId, { deviceName: d.deviceName })
+        })
+        logger.info('Bluetooth', '已加载授权设备', { count: devices.length, devices: devices.map(d => d.deviceName) })
+      }
+    } catch (error) {
+      logger.error('Bluetooth', '加载授权设备失败', error.message)
+    }
+  }
+
+  // 加载已保存的授权设备
+  loadGrantedDevices()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
@@ -248,6 +326,49 @@ app.whenReady().then(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('bluetooth-connection-changed', { connected, deviceName })
     }
+  })
+
+  /**
+   * 触发自动重连（通过模拟用户点击来满足 Chromium 的用户手势要求）
+   * 渲染进程检测到有保存的设备后，请求主进程模拟点击
+   */
+  ipcMain.on('trigger-auto-reconnect', () => {
+    logger.info('Bluetooth', '收到自动重连请求，模拟用户点击...')
+    
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      logger.error('Bluetooth', '主窗口不存在')
+      return
+    }
+    
+    // 模拟鼠标点击事件（在窗口中心位置）
+    const bounds = mainWindow.getBounds()
+    const x = Math.floor(bounds.width / 2)
+    const y = Math.floor(bounds.height / 3) // 点击上部区域（按钮位置）
+    
+    // 发送鼠标按下事件
+    mainWindow.webContents.sendInputEvent({
+      type: 'mouseDown',
+      x: x,
+      y: y,
+      button: 'left',
+      clickCount: 1
+    })
+    
+    // 发送鼠标释放事件
+    mainWindow.webContents.sendInputEvent({
+      type: 'mouseUp',
+      x: x,
+      y: y,
+      button: 'left',
+      clickCount: 1
+    })
+    
+    // 延迟一小段时间后，通知渲染进程执行连接
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('execute-auto-reconnect')
+      }
+    }, 100)
   })
 
   // ==================== 点击卡片触发AI输入 ====================
@@ -524,6 +645,11 @@ app.whenReady().then(() => {
     if (musttrueDevice) {
       logger.info('Bluetooth', `✅ 找到 Musttrue 设备: ${musttrueDevice.deviceName}`)
       clearScanState()
+      
+      // 保存设备授权（用于自动重连）
+      grantedBluetoothDevices.set(musttrueDevice.deviceId, { deviceName: musttrueDevice.deviceName })
+      saveGrantedDevices()
+      
       callback(musttrueDevice.deviceId)
       return
     }

@@ -9,13 +9,13 @@
       <span class="bt-text">{{ bluetoothStatusText }}</span>
       <!-- 连接按钮 -->
       <button v-if="!bluetoothConnected" class="bt-btn" @click="scanAndConnect" :disabled="isConnecting">
-        {{ isConnecting ? '连接中...' : '授权并连接' }}
+        {{ isConnecting ? '连接中...' : (hasSavedDevice ? '一键重连' : '授权并连接') }}
       </button>
       <button v-else class="bt-btn disconnect" @click="disconnectBluetooth">断开连接</button>
     </div>
     <!-- 操作提示 -->
     <div class="bt-hint" v-if="!bluetoothConnected && !isConnecting">
-      长按笔帽开机 → 点击授权并连接（无需先在电脑蓝牙配对）
+      {{ hasSavedDevice ? '检测到已授权设备，点击一键重连即可' : '长按笔帽开机 → 点击授权并连接（无需先在电脑蓝牙配对）' }}
     </div>
     
     <div class="cards">
@@ -130,6 +130,8 @@ const bluetoothConnected = ref(false)
 const bluetoothDeviceName = ref('')
 // 是否正在连接中
 const isConnecting = ref(false)
+// 是否有已保存的设备（用于显示"一键重连"）
+const hasSavedDevice = ref(false)
 // 蓝牙设备引用
 let bluetoothDevice = null
 let bluetoothServer = null
@@ -511,48 +513,48 @@ const scanAndConnect = async () => {
 }
 
 /**
- * 自动重连（无需用户手势）
- * 页面加载时尝试连接之前授权过的设备
+ * 自动重连
+ * 页面加载时检查是否有保存的设备，如果有则请求主进程触发自动连接
  */
 const autoReconnect = async () => {
-  // 检查 getDevices API 是否可用
-  if (typeof navigator.bluetooth?.getDevices !== 'function') {
-    console.log('[BLE] getDevices API 不可用，跳过自动重连')
-    return
+  const log = (msg, data) => {
+    console.log('[BLE]', msg, data || '')
+    window.api?.logger?.info('BLE-AutoReconnect', msg, data)
   }
+  
+  log('检查是否有保存的设备...')
   
   const savedId = localStorage.getItem('ble-device-id')
-  if (!savedId) {
-    console.log('[BLE] 没有保存的设备 ID，跳过自动重连')
-    return
-  }
   
-  console.log('[BLE] 尝试自动重连，设备 ID:', savedId)
-  
-  try {
-    const devices = await navigator.bluetooth.getDevices()
-    console.log('[BLE] 已授权设备数量:', devices.length)
+  if (savedId) {
+    hasSavedDevice.value = true
+    log('检测到已保存设备，请求主进程触发自动重连...', { savedId })
     
-    const device = devices.find(d => d.id === savedId)
-    if (!device) {
-      console.log('[BLE] 未找到之前授权的设备')
-      return
-    }
-    
-    console.log('[BLE] 找到已授权设备:', device.name)
-    
-    // 检查是否已连接
-    if (device.gatt?.connected) {
-      console.log('[BLE] 设备已连接，跳过')
-      return
-    }
-    
-    // 连接设备
-    await connectToDevice(device)
-    
-  } catch (error) {
-    console.log('[BLE] 自动重连失败:', error.message)
+    // 请求主进程模拟用户点击，以满足 Chromium 的用户手势要求
+    window.api?.triggerAutoReconnect()
+  } else {
+    log('没有保存的设备')
+    hasSavedDevice.value = false
   }
+}
+
+/**
+ * 监听主进程的自动重连执行事件
+ */
+const setupAutoReconnectListener = () => {
+  window.api?.onExecuteAutoReconnect(async () => {
+    console.log('[BLE] 收到主进程的自动重连指令，执行连接...')
+    window.api?.logger?.info('BLE-AutoReconnect', '收到主进程指令，执行连接')
+    
+    try {
+      await scanAndConnect()
+      console.log('[BLE] 自动重连成功!')
+      window.api?.logger?.info('BLE-AutoReconnect', '自动重连成功')
+    } catch (error) {
+      console.error('[BLE] 自动重连失败:', error.message)
+      window.api?.logger?.error('BLE-AutoReconnect', '自动重连失败', { error: error.message })
+    }
+  })
 }
 
 /**
@@ -836,6 +838,9 @@ onMounted(async () => {
   }
   
   console.log('[BLE-Diag] ========== 蓝牙诊断结束 ==========')
+  
+  // 设置自动重连监听器
+  setupAutoReconnectListener()
   
   // 尝试自动重连之前授权的设备
   autoReconnect()

@@ -79,6 +79,18 @@ const api = {
    */
   onBluetoothConnectionChanged: (callback) => {
     ipcRenderer.on('bluetooth-connection-changed', (event, data) => callback(data))
+  },
+  /**
+   * 请求主进程触发自动重连（通过模拟用户点击）
+   */
+  triggerAutoReconnect: () => {
+    ipcRenderer.send('trigger-auto-reconnect')
+  },
+  /**
+   * 监听执行自动重连事件
+   */
+  onExecuteAutoReconnect: (callback) => {
+    ipcRenderer.on('execute-auto-reconnect', () => callback())
   }
 }
 
