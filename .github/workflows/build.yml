@@ -15,8 +15,8 @@ jobs:
             platform: win
           - os: macos-latest
             platform: mac
-          - os: ubuntu-latest
-            platform: linux
+          # - os: ubuntu-latest
+          #   platform: linux
 
     runs-on: ${{ matrix.os }}
 
@@ -34,21 +34,20 @@ jobs:
         with:
           version: 8
 
-      - name: Setup Python (for native modules)
-        uses: actions/setup-python@v5
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
-      - name: Install Python setuptools
-        run: pip install setuptools
-
-      - name: Install dependencies (skip postinstall)
-        run: pnpm install --ignore-scripts
-
-      - name: Rebuild native modules
-        run: pnpm exec electron-builder install-app-deps
-        env:
-          PYTHON: python
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build for Windows
         if: matrix.platform == 'win'
@@ -57,10 +56,12 @@ jobs:
       - name: Build for macOS
         if: matrix.platform == 'mac'
         run: pnpm build:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false  # 跳过代码签名
 
-      - name: Build for Linux
-        if: matrix.platform == 'linux'
-        run: pnpm build:linux
+      # - name: Build for Linux
+      #   if: matrix.platform == 'linux'
+      #   run: pnpm build:linux
 
       - name: Upload Windows artifacts
         if: matrix.platform == 'win'
@@ -78,14 +79,14 @@ jobs:
             dist/*.dmg
             dist/*.zip
 
-      - name: Upload Linux artifacts
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build
-          path: |
-            dist/*.AppImage
-            dist/*.deb
+      # - name: Upload Linux artifacts
+      #   if: matrix.platform == 'linux'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: linux-build
+      #     path: |
+      #       dist/*.AppImage
+      #       dist/*.deb
 
   release:
     needs: build
