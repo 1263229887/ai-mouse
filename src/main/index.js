@@ -39,8 +39,10 @@ let targetLangName = '英文'
 function createWindow() {
   // 创建主窗口
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 680,
+    width: 1280,
+    height: 800,
+    minWidth: 1100,
+    minHeight: 680,
     show: false,
     autoHideMenuBar: true,
     icon,
@@ -126,6 +128,12 @@ function createPopupWindow(route = '/typing', options = {}) {
     show: true,
     // 不获取焦点，保持原来输入框的焦点
     focusable: false,
+    // macOS: 不在 Dock 中显示，防止影响主窗口
+    ...(process.platform === 'darwin' ? {
+      type: 'panel',  // 使用 panel 类型，完全独立于主窗口
+      hasShadow: false,
+      hiddenInMissionControl: true
+    } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -746,12 +754,23 @@ app.on('will-quit', () => {
  */
 function simulatePaste() {
   const platform = process.platform
+  logger.info('Paste', '开始模拟粘贴', { platform })
 
   if (platform === 'win32') {
     // Windows: 使用 PowerShell 的 SendKeys
     const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
     exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`, handleExecResult)
   } else if (platform === 'darwin') {
+    // macOS: 检查辅助功能权限
+    const { systemPreferences } = require('electron')
+    const isTrusted = systemPreferences.isTrustedAccessibilityClient(true)
+    logger.info('Paste', 'macOS 辅助功能权限', { isTrusted })
+    
+    if (!isTrusted) {
+      logger.warn('Paste', '缺少辅助功能权限，无法模拟粘贴。请在 系统设置 -> 安全性与隐私 -> 辅助功能 中添加本应用')
+      return
+    }
+    
     // macOS: 使用 AppleScript 模拟 Command+V
     const appleScript = `tell application "System Events" to keystroke "v" using command down`
     exec(`osascript -e '${appleScript}'`, handleExecResult)
@@ -766,10 +785,9 @@ function simulatePaste() {
  */
 function handleExecResult(error, stdout, stderr) {
   if (error) {
-    console.error('模拟粘贴失败:', error.message)
-    if (stderr) console.error('stderr:', stderr)
+    logger.error('Paste', '模拟粘贴失败', { error: error.message, stderr })
   } else {
-    console.log('模拟粘贴成功')
+    logger.info('Paste', '模拟粘贴成功')
   }
 }
 

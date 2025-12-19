@@ -452,6 +452,9 @@ const scanAndConnect = async () => {
   isConnecting.value = true
   console.log('[BLE] 开始连接流程...')
   
+  // 检测平台
+  const isMac = navigator.platform.toLowerCase().includes('mac')
+  
   try {
     // Step 1: 先尝试连接已授权的设备（如果 API 可用）
     const savedId = localStorage.getItem('ble-device-id')
@@ -466,6 +469,31 @@ const scanAndConnect = async () => {
           console.log('[BLE] 找到已授权设备:', savedDevice.name)
           
           try {
+            // macOS: 如果设备支持 watchAdvertisements，先监听广播
+            if (isMac && typeof savedDevice.watchAdvertisements === 'function') {
+              console.log('[BLE] macOS: 使用 watchAdvertisements 监听设备...')
+              
+              // 监听广播事件
+              const advertHandler = async () => {
+                console.log('[BLE] 收到设备广播，尝试连接...')
+                savedDevice.removeEventListener('advertisementreceived', advertHandler)
+                try {
+                  await savedDevice.forget?.() // 如果支持，先忘记再连
+                } catch (e) { /* ignore */ }
+                const success = await connectToDevice(savedDevice)
+                if (success) {
+                  console.log('[BLE] ✅ macOS 广播连接成功!')
+                }
+              }
+              
+              savedDevice.addEventListener('advertisementreceived', advertHandler)
+              await savedDevice.watchAdvertisements()
+              
+              // 5秒超时
+              await new Promise(resolve => setTimeout(resolve, 5000))
+              savedDevice.removeEventListener('advertisementreceived', advertHandler)
+            }
+            
             // 尝试直接连接
             const success = await connectToDevice(savedDevice)
             if (success) {
@@ -476,11 +504,15 @@ const scanAndConnect = async () => {
             console.log('[BLE] 已授权设备连接失败:', error.message)
             // 如果是系统占用错误，提示用户
             if (error.message.includes('GATT') || error.message.includes('connect')) {
+              const platformTip = isMac
+                ? '请在 macOS 系统设置 -> 蓝牙 中找到 "Musttrue Pencil"，\n' +
+                  '点击 "X" 断开连接（或右键选择"忘记此设备"），\n' +
+                  '然后点击"确定"重试。'
+                : '请在 Windows 蓝牙设置中断开 "Musttrue Pencil" 的连接，\n' +
+                  '然后点击"确定"重试。'
+              
               const shouldRetry = confirm(
-                '检测到设备可能已被 Windows 系统占用。\n\n' +
-                '请在 Windows 蓝牙设置中断开 "Musttrue Pencil" 的连接，\n' +
-                '然后点击“确定”重试。\n\n' +
-                '点击“取消”将扫描新设备。'
+                '检测到设备可能已被系统占用。\n\n' + platformTip + '\n\n点击"取消"将扫描新设备。'
               )
               if (shouldRetry) {
                 isConnecting.value = false
