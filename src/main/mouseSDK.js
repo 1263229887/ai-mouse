@@ -23,6 +23,9 @@ let SDK_registerDeviceMessageListener = null
 let SDK_registerDeviceAudioDataListener = null
 let SDK_getAudioEnable = null
 let SDK_setDeviceMicrophoneEnable = null
+let SDK_getConnectionMode = null
+let SDK_getConnectedDeviceCount = null
+let SDK_getDeviceId = null
 
 // 回调函数引用（防止被GC回收）
 let DeviceConnectedCallback = null
@@ -96,14 +99,27 @@ function initSDK(debug = true) {
     SDK_getAudioEnable = libm.func('bool getAudioEnable(const char* deviceId)')
     SDK_setDeviceMicrophoneEnable = libm.func('bool setDeviceMicrophoneEnable(const char* deviceId, int enable)')
     
+    // 获取设备连接方式 (0=USB接收器, 1=蓝牙)
+    SDK_getConnectionMode = libm.func('int getConnectionMode(const char* deviceId)')
+    
+    // 获取已连接设备数量和设备ID（用于主动查询）
+    SDK_getConnectedDeviceCount = libm.func('int getConnectedDeviceCount(void)')
+    SDK_getDeviceId = libm.func('const char* getDeviceId(int index)')
+    
+    // 先注册回调，确保能捕获到SDK初始化时的设备连接事件
+    // 解决设备在sdkInit时已连接导致回调错过的问题
+    registerCallbacks()
+    
     // 调用SDK初始化
     SDK_sdkInit(debug)
     
-    // 注册回调
-    registerCallbacks()
-    
     isInitialized = true
     logger.info('MouseSDK', 'SDK初始化成功')
+    
+    // SDK初始化后，主动查询已连接的设备
+    // 解决回调可能没有触发的问题
+    checkConnectedDevices()
+    
     return true
   } catch (error) {
     logger.error('MouseSDK', 'SDK初始化失败', { error: error.message, stack: error.stack })
@@ -117,8 +133,19 @@ function initSDK(debug = true) {
 function registerCallbacks() {
   // 设备连接回调
   const onDeviceConnected = (deviceId, connectionMode) => {
-    logger.info('MouseSDK', '设备已连接', { deviceId, connectionMode })
+    // connectionMode: 0=USB接收器, 1=蓝牙
+    const connectionModeText = connectionMode === 0 ? 'USB接收器' : connectionMode === 1 ? '蓝牙' : `未知(${connectionMode})`
+    logger.info('MouseSDK', '设备已连接', { deviceId, connectionMode, connectionModeText })
     connectedDeviceId = deviceId
+    
+    // 验证实际连接模式
+    try {
+      const actualMode = SDK_getConnectionMode ? SDK_getConnectionMode(deviceId) : -1
+      const actualModeText = actualMode === 0 ? 'USB接收器' : actualMode === 1 ? '蓝牙' : `未知(${actualMode})`
+      logger.info('MouseSDK', '实际连接模式', { actualMode, actualModeText })
+    } catch (e) {
+      logger.warn('MouseSDK', '获取连接模式失败', { error: e.message })
+    }
     
     // 设置语音键绑定到鼠标中键长按 (需要找到正确的 index)
     // 获取当前语音键配置（仅记录，不修改）
@@ -136,7 +163,8 @@ function registerCallbacks() {
   
   // 设备断开回调
   const onDeviceDisconnected = (deviceId, connectionMode) => {
-    logger.info('MouseSDK', '设备已断开', { deviceId, connectionMode })
+    const connectionModeText = connectionMode === 0 ? 'USB接收器' : connectionMode === 1 ? '蓝牙' : `未知(${connectionMode})`
+    logger.info('MouseSDK', '设备已断开', { deviceId, connectionMode, connectionModeText })
     if (connectedDeviceId === deviceId) {
       connectedDeviceId = null
     }
@@ -185,6 +213,50 @@ function registerCallbacks() {
   SDK_registerDeviceAudioDataListener(DeviceAudioDataCallback)
   
   logger.info('MouseSDK', '回调函数已注册')
+}
+
+/**
+ * 主动查询已连接的设备
+ * 解决回调可能没有触发的问题
+ */
+function checkConnectedDevices() {
+  if (!SDK_getConnectedDeviceCount || !SDK_getDeviceId) {
+    logger.warn('MouseSDK', '设备查询函数不可用')
+    return
+  }
+  
+  try {
+    const deviceCount = SDK_getConnectedDeviceCount()
+    logger.info('MouseSDK', '已连接设备数量', { deviceCount })
+    
+    if (deviceCount > 0) {
+      // 获取第一个设备的ID
+      const deviceId = SDK_getDeviceId(0)
+      logger.info('MouseSDK', '主动查询到已连接设备', { deviceId })
+      
+      if (deviceId && !connectedDeviceId) {
+        // 如果回调没有设置，主动设置
+        connectedDeviceId = deviceId
+        logger.info('MouseSDK', '主动设置已连接设备ID', { deviceId })
+        
+        // 获取连接模式
+        let connectionMode = 0
+        try {
+          connectionMode = SDK_getConnectionMode ? SDK_getConnectionMode(deviceId) : 0
+        } catch (e) {
+          logger.warn('MouseSDK', '获取连接模式失败', { error: e.message })
+        }
+        
+        // 延迟1秒后触发回调（保持与原回调逻辑一致）
+        setTimeout(() => {
+          logger.info('MouseSDK', '主动查询后触发设备连接回调')
+          onDeviceConnectedCallback?.(deviceId, connectionMode)
+        }, 1000)
+      }
+    }
+  } catch (error) {
+    logger.error('MouseSDK', '查询已连接设备失败', { error: error.message })
+  }
 }
 
 /**
@@ -295,6 +367,28 @@ function getConnectedDeviceId() {
   return connectedDeviceId
 }
 
+/**
+ * 获取设备连接模式
+ * @param {string} deviceId - 设备ID
+ * @returns {number} - 连接模式 (0=USB接收器, 1=蓝牙, -1=获取失败)
+ */
+function getConnectionMode(deviceId) {
+  if (!isInitialized || !SDK_getConnectionMode) {
+    logger.warn('MouseSDK', '获取连接模式失败：SDK未初始化或函数不可用')
+    return -1
+  }
+  
+  try {
+    const mode = SDK_getConnectionMode(deviceId)
+    const modeText = mode === 0 ? 'USB接收器' : mode === 1 ? '蓝牙' : `未知(${mode})`
+    logger.info('MouseSDK', '获取连接模式', { deviceId, mode, modeText })
+    return mode
+  } catch (error) {
+    logger.error('MouseSDK', '获取连接模式失败', { error: error.message })
+    return -1
+  }
+}
+
 export default {
   initSDK,
   closeSDK,
@@ -305,5 +399,6 @@ export default {
   setMicrophoneEnable,
   getAudioEnable,
   getStatus,
-  getConnectedDeviceId
+  getConnectedDeviceId,
+  getConnectionMode
 }

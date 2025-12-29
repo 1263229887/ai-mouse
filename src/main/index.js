@@ -235,10 +235,33 @@ app.whenReady().then(() => {
   /**
    * 获取鼠标设备连接状态
    * 解决窗口加载完成前设备已连接导致状态不同步的问题
+   * 添加等待和重试逻辑，确保SDK初始化完成后再返回状态
    */
-  ipcMain.handle('get-mouse-status', () => {
-    const status = mouseSDK.getStatus()
+  ipcMain.handle('get-mouse-status', async () => {
+    // 等待SDK初始化完成（包括设备枚举）
+    if (sdkReadyPromise) {
+      await sdkReadyPromise
+    }
+    
+    // 获取当前状态
+    let status = mouseSDK.getStatus()
     logger.info('Main', '渲染进程查询鼠标状态', status)
+    
+    // 如果未连接，尝试多次重试（处理DLL延迟情况）
+    if (!status.isConnected || !status.deviceId) {
+      // 重试最多3次，每次间隔1秒
+      for (let retry = 1; retry <= 3; retry++) {
+        logger.info('Main', `设备未连接，等待1秒后重试查询 (${retry}/3)...`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        status = mouseSDK.getStatus()
+        logger.info('Main', `重试查询鼠标状态 #${retry}`, status)
+        
+        if (status.isConnected && status.deviceId) {
+          break // 连接成功，退出重试
+        }
+      }
+    }
+    
     return {
       isConnected: status.isConnected,
       deviceId: status.deviceId
@@ -616,15 +639,25 @@ function handleExecResult(error, stdout, stderr) {
 }
 
 // ==================== AI鼠标SDK初始化 ====================
+// SDK初始化完成的Promise，用于等待SDK稳定
+let sdkReadyPromise = null
+let sdkReadyResolve = null
+
 /**
  * 初始化AI鼠标SDK并设置回调
  */
 function initMouseSDK() {
   logger.info('Main', '开始初始化AI鼠标SDK')
   
+  // 创建SDK就绪的Promise
+  sdkReadyPromise = new Promise((resolve) => {
+    sdkReadyResolve = resolve
+  })
+  
   const success = mouseSDK.initSDK(true)
   if (!success) {
     logger.error('Main', 'AI鼠标SDK初始化失败')
+    sdkReadyResolve() // 即使失败也要resolve，避免死锁
     return
   }
   
@@ -665,7 +698,39 @@ function initMouseSDK() {
     handleDeviceAudioData(deviceId, audioData, length)
   })
   
-  logger.info('Main', 'AI鼠标SDK初始化完成')
+  logger.info('Main', 'AI鼠标SDK初始化完成，等待DLL设备枚举...')
+  
+  // DLL内部设备枚举可能需要时间，延迟一段时间让SDK稳定
+  // 启动轮询检测，每500ms检查一次，最多检测20次（10秒）
+  let checkCount = 0
+  const maxChecks = 20 // 增加到 20 次（10秒）
+  const checkInterval = setInterval(() => {
+    checkCount++
+    const status = mouseSDK.getStatus()
+    
+    // 减少日志频率，每5次记录一次
+    if (checkCount % 5 === 1 || status.isConnected) {
+      logger.info('Main', `SDK设备检测 #${checkCount}`, status)
+    }
+    
+    if (status.isConnected && status.deviceId) {
+      // 检测到设备已连接
+      logger.info('Main', 'SDK检测到设备已连接', { deviceId: status.deviceId, checkCount })
+      isMouseConnected = true
+      clearInterval(checkInterval)
+      sdkReadyResolve()
+      
+      // 主动通知渲染进程
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('mouse-connected', { deviceId: status.deviceId, connectionMode: 0 })
+      }
+    } else if (checkCount >= maxChecks) {
+      // 达到最大检测次数，停止检测
+      logger.info('Main', 'SDK设备检测完成，未检测到设备')
+      clearInterval(checkInterval)
+      sdkReadyResolve()
+    }
+  }, 500)
 }
 
 /**

@@ -5,7 +5,7 @@
     
     <!-- 设备连接状态显示 -->
     <div class="connection-status" :class="{ 'connected': isDeviceConnected }">
-      <span class="loading-spinner" v-if="!isDeviceConnected"></span>
+      <span class="loading-spinner" v-if="isConnecting || !isDeviceConnected"></span>
       <span class="status-indicator" v-else></span>
       <span class="status-text">{{ isDeviceConnected ? 'AI鼠标已连接' : '正在连接AI鼠标...' }}</span>
     </div>
@@ -124,8 +124,10 @@ import { Search } from '@element-plus/icons-vue'
 const currentMode = ref(null)
 // 是否正在录音
 const isRecording = ref(false)
-// 设备是否已连接
+// 设备是否已连接（实际状态）
 const isDeviceConnected = ref(false)
+// 是否正在连接中（用于显示loading效果）
+const isConnecting = ref(true)
 
 // ==================== 语言选择 ====================
 // 语言列表
@@ -318,6 +320,26 @@ const handleKeydown = (e) => {
 
 // ==================== 设备状态轮询 ====================
 let pollTimer = null
+
+/**
+ * 设置设备连接状态（延迟1秒显示，提供loading效果）
+ */
+const setDeviceConnected = (connected) => {
+  if (connected) {
+    // 设备连接后，延迟1秒再显示连接成功
+    console.log('[Home] 设备已连接，延迟1秒显示...')
+    setTimeout(() => {
+      isDeviceConnected.value = true
+      isConnecting.value = false
+      console.log('[Home] 连接状态已更新为已连接')
+    }, 1000)
+  } else {
+    // 断开时立即更新
+    isDeviceConnected.value = false
+    isConnecting.value = false
+  }
+}
+
 const pollMouseStatus = async () => {
   // 如果已连接，停止轮询
   if (isDeviceConnected.value) {
@@ -333,7 +355,7 @@ const pollMouseStatus = async () => {
     console.log('[Home] 轮询设备状态:', status)
     if (status && status.isConnected) {
       console.log('[Home] 设备已连接，同步状态')
-      isDeviceConnected.value = true
+      setDeviceConnected(true)
       // 停止轮询
       if (pollTimer) {
         clearInterval(pollTimer)
@@ -377,11 +399,11 @@ onMounted(async () => {
   // 监听设备连接状态
   window.electron.ipcRenderer.on('mouse-connected', (event, data) => {
     console.log('[Home] AI鼠标已连接', data)
-    isDeviceConnected.value = true
+    setDeviceConnected(true)
   })
   window.electron.ipcRenderer.on('mouse-disconnected', (event, data) => {
     console.log('[Home] AI鼠标已断开', data)
-    isDeviceConnected.value = false
+    setDeviceConnected(false)
     // 断开时重置模式
     currentMode.value = null
     isRecording.value = false

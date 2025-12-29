@@ -613,14 +613,6 @@ class SpeechRecognition {
       hardwareAudioCount: this.hardwareAudioCount
     })
     
-    // 硬件录音模式：保存 WAV 文件用于调试
-    if (this.useHardwareRecording && this.allAudioData && this.allAudioData.length > 0) {
-      logger.info('SpeechRecognition', '硬件录音模式，保存 WAV 文件用于调试', {
-        chunks: this.allAudioData.length
-      })
-      this.saveAudioAsWav()
-    }
-    
     // 停止录音
     if (this.isRecording) {
       this.isRecording = false
