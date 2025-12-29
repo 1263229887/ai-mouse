@@ -45,6 +45,10 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    
+    // 窗口准备好后，同步当前设备连接状态
+    // 解决启动时设备已连接但窗口还未准备好接收消息的问题
+    syncDeviceStatusToWindow()
   })
 
   // 主窗口关闭时，同时关闭弹窗
@@ -629,6 +633,25 @@ function initMouseSDK() {
   })
   
   logger.info('Main', 'AI鼠标SDK初始化完成')
+}
+
+/**
+ * 同步设备连接状态到主窗口
+ * 用于解决窗口加载时设备已连接但未收到通知的问题
+ */
+function syncDeviceStatusToWindow() {
+  const status = mouseSDK.getStatus()
+  logger.info('Main', '同步设备状态到窗口', status)
+  
+  if (status.isConnected && mainWindow && !mainWindow.isDestroyed()) {
+    // 设备已连接，主动发送连接消息给渲染进程
+    isMouseConnected = true
+    mainWindow.webContents.send('mouse-connected', { 
+      deviceId: status.deviceId, 
+      connectionMode: 'synced' 
+    })
+    logger.info('Main', '已同步设备连接状态到主窗口')
+  }
 }
 
 /**
