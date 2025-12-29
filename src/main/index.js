@@ -527,46 +527,11 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 标记是否已经在关闭过程中
-let isQuitting = false
-
-// 应用退出前，先等待SDK断开回调
-app.on('before-quit', async (event) => {
-  // 如果已经在关闭过程中，不重复处理
-  if (isQuitting) {
-    return
-  }
-  
-  // 检查是否有连接的设备
-  const status = mouseSDK.getStatus()
-  if (!status.isConnected) {
-    // 没有连接的设备，直接关闭SDK并退出
-    globalShortcut.unregisterAll()
-    mouseSDK.closeSDK()
-    logger.info('Main', '应用退出，已清理资源（无连接设备）')
-    return
-  }
-  
-  // 有连接的设备，阻止默认退出，等待断开回调
-  event.preventDefault()
-  isQuitting = true
-  
-  logger.info('Main', '应用退出，等待设备断开回调...', { deviceId: status.deviceId })
-  
-  // 注销快捷键
+// 应用退出前清理资源（不关闭SDK，不等待设备断开回调）
+app.on('before-quit', () => {
+  // 只注销快捷键，不关闭SDK
   globalShortcut.unregisterAll()
-  
-  // 异步关闭SDK，等待断开回调
-  const success = await mouseSDK.closeSDKAsync(3000)
-  
-  if (success) {
-    logger.info('Main', '应用退出，已收到设备断开回调')
-  } else {
-    logger.warn('Main', '应用退出，等待断开回调超时')
-  }
-  
-  // 继续退出应用
-  app.exit(0)
+  logger.info('Main', '应用退出，已注销快捷键')
 })
 
 // ==================== 录音控制函数 ====================
