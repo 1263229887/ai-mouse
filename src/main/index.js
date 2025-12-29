@@ -5,6 +5,7 @@ import { exec } from 'child_process'
 
 import icon from '../renderer/src/assets/icon_av.png?asset'
 import logger from './logger.js'
+import mouseSDK from './mouseSDK.js'
 
 // ==================== 窗口引用 ====================
 // 主窗口引用
@@ -17,6 +18,8 @@ let popupWindow = null
 let currentMode = null
 // 当前是否正在录音
 let isRecording = false
+// 鼠标设备是否已连接
+let isMouseConnected = false
 // 源语言 isoCode，默认中文
 let sourceIsoCode = 'ZH'
 // 目标语言 isoCode，默认英文
@@ -165,6 +168,9 @@ app.whenReady().then(() => {
   const logPath = logger.init()
   logger.info('Main', '应用启动')
   logger.info('Main', '日志文件路径', logPath)
+
+  // ==================== 初始化AI鼠标SDK ====================
+  initMouseSDK()
 
   // 忽略证书错误（允许ws://连接）
   const { session } = require('electron')
@@ -407,22 +413,10 @@ app.whenReady().then(() => {
     }
   })
 
-  // ==================== 快捷键控制录音 ====================
-  /**
-   * 使用 Ctrl+Shift+F (Windows/Linux) 或 Command+Shift+F (macOS) 启动/停止录音
-   * CommandOrControl 会自动适配不同平台
-   */
-  globalShortcut.register('CommandOrControl+Shift+F', () => {
-    // 检查是否选中了模式
-    if (!currentMode) {
-      logger.info('Main', '快捷键按下但未选择模式，忽略')
-      return
-    }
-
-    logger.info('Main', '快捷键 Ctrl/Cmd+Shift+F 按下', { currentMode, isRecording })
-    handleRecordingToggle()
-  })
-  logger.info('Main', '快捷键 CommandOrControl+Shift+F 已注册')
+  // ==================== 快捷键已移除，改用鼠标中键控制录音 ====================
+  // 双击式交互：第一次按AI键启动录音，第二次按AI键停止录音
+  // 监听逻辑在 handleMouseMessage 函数中实现
+  logger.info('Main', '录音控制已改用AI键（index=96），第一次按下开始录音，第二次按下停止录音')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -440,33 +434,32 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 应用退出时注销所有快捷键
+// 应用退出时注销所有快捷键并关闭SDK
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  mouseSDK.closeSDK()
   logger.info('Main', '应用退出，已清理资源')
 })
 
-// ==================== 快捷键录音控制逻辑 ====================
-/**
- * 处理快捷键切换录音状态
- */
-function handleRecordingToggle() {
-  if (!currentMode) return
-
-  if (!isRecording) {
-    // 启动录音
-    startRecording()
-  } else {
-    // 停止录音
-    stopRecording()
-  }
-}
-
+// ==================== 录音控制函数 ====================
 /**
  * 启动录音
  */
 function startRecording() {
-  logger.info('Main', '快捷键启动录音', { currentMode })
+  // 确保只有一个窗口，如果窗口已存在且正在录音，跳过
+  if (popupWindow && !popupWindow.isDestroyed() && isRecording) {
+    logger.info('Main', '录音窗口已存在且正在录音，跳过')
+    return
+  }
+  
+  // 如果窗口存在但不在录音状态，先关闭旧窗口
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    logger.info('Main', '关闭旧的录音窗口')
+    popupWindow.destroy()
+    popupWindow = null
+  }
+  
+  logger.info('Main', '鼠标中键启动录音', { currentMode })
   isRecording = true
 
   // 根据模式创建对应窗口
@@ -505,6 +498,11 @@ function startRecording() {
 
   if (popupWindow) {
     const sendMessage = () => {
+      // 发送前再次检查状态，防止中键已松开
+      if (!isRecording) {
+        logger.info('Main', '中键已松开，取消发送启动消息')
+        return
+      }
       if (popupWindow && !popupWindow.isDestroyed()) {
         logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
         popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
@@ -529,7 +527,13 @@ function startRecording() {
  * 停止录音
  */
 function stopRecording() {
-  logger.info('Main', '快捷键停止录音')
+  // 如果没有在录音，跳过
+  if (!isRecording) {
+    logger.info('Main', '未在录音，跳过停止')
+    return
+  }
+  
+  logger.info('Main', '鼠标中键停止录音')
   isRecording = false
 
   // 通知主窗口状态变化
@@ -576,6 +580,106 @@ function handleExecResult(error, stdout, stderr) {
     if (stderr) console.error('stderr:', stderr)
   } else {
     console.log('模拟粘贴成功')
+  }
+}
+
+// ==================== AI鼠标SDK初始化 ====================
+/**
+ * 初始化AI鼠标SDK并设置回调
+ */
+function initMouseSDK() {
+  logger.info('Main', '开始初始化AI鼠标SDK')
+  
+  const success = mouseSDK.initSDK(true)
+  if (!success) {
+    logger.error('Main', 'AI鼠标SDK初始化失败')
+    return
+  }
+  
+  // 设备连接回调
+  mouseSDK.setOnDeviceConnected((deviceId, connectionMode) => {
+    logger.info('Main', 'AI鼠标已连接', { deviceId, connectionMode })
+    isMouseConnected = true
+    
+    // 通知主窗口鼠标已连接
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mouse-connected', { deviceId, connectionMode })
+    }
+  })
+  
+  // 设备断开回调
+  mouseSDK.setOnDeviceDisconnected((deviceId, connectionMode) => {
+    logger.info('Main', 'AI鼠标已断开', { deviceId, connectionMode })
+    isMouseConnected = false
+    
+    // 如果正在录音，停止录音
+    if (isRecording) {
+      stopRecording()
+    }
+    
+    // 通知主窗口鼠标已断开
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mouse-disconnected', { deviceId, connectionMode })
+    }
+  })
+  
+  // 设备消息回调（处理鼠标中键按下/松开事件）
+  mouseSDK.setOnDeviceMessage((deviceId, message) => {
+    handleMouseMessage(deviceId, message)
+  })
+  
+  logger.info('Main', 'AI鼠标SDK初始化完成')
+}
+
+/**
+ * 处理鼠标设备消息
+ * 识别AI键的按下事件（双击式交互）
+ */
+function handleMouseMessage(deviceId, message) {
+  // 消息格式: { type: 'deviceKeyEvent', index: 96, status: 1/0 }
+  // index=96 表示AI键单击（index=97是长按）
+  // status=1 表示按下, status=0 表示松开
+  // 双击式交互：第一次按下启动录音，第二次按下停止录音
+  
+  logger.debug('Main', '收到鼠标消息', { deviceId, message })
+  
+  if (typeof message === 'object') {
+    const { type, index, status, enabled, access } = message
+    
+    // 检测AI键单击按下事件 (index=96, status=1)
+    // 只处理按下事件，忽略松开事件
+    if (type === 'deviceKeyEvent' && index === 96 && status === 1) {
+      logger.info('Main', '检测到AI键按下')
+      handleAIKeyPress()
+    }
+    
+    // audioEnable/deviceMicrophoneEnable 事件 - 记录但不处理
+    if (type === 'audioEnable' || type === 'deviceMicrophoneEnable') {
+      logger.info('Main', '音频状态事件', { type, enabled, access })
+    }
+  }
+}
+
+/**
+ * 处理AI键按下 - 切换录音状态
+ * 第一次按下启动录音，第二次按下停止录音
+ */
+function handleAIKeyPress() {
+  // 检查是否选中了模式
+  if (!currentMode) {
+    logger.info('Main', 'AI键按下但未选择模式，忽略')
+    return
+  }
+  
+  // 切换录音状态
+  if (!isRecording) {
+    // 第一次按下 - 启动录音
+    logger.info('Main', 'AI键第一次按下 - 启动录音', { currentMode })
+    startRecording()
+  } else {
+    // 第二次按下 - 停止录音
+    logger.info('Main', 'AI键第二次按下 - 停止录音')
+    stopRecording()
   }
 }
 

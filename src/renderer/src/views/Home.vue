@@ -1,25 +1,44 @@
 <template>
   <!-- 首页组件 - 功能卡片选择页面 -->
-  <div class="container">
+  <div class="container" :class="{ 'device-connected': isDeviceConnected }">
     <h1 class="title">AI Mouse</h1>
+    
+    <!-- 设备连接状态显示 -->
+    <div class="connection-status" :class="{ 'connected': isDeviceConnected }">
+      <span class="loading-spinner" v-if="!isDeviceConnected"></span>
+      <span class="status-indicator" v-else></span>
+      <span class="status-text">{{ isDeviceConnected ? 'AI鼠标已连接' : '正在连接AI鼠标...' }}</span>
+    </div>
+    
     <div class="cards">
       <!-- AI输入卡片 -->
-      <div class="card" :class="{ 'card-selected': currentMode === 'typing' }" @click="selectMode('typing')">
+      <div class="card" 
+           :class="{ 
+             'card-selected': currentMode === 'typing',
+             'card-disabled': !isDeviceConnected 
+           }" 
+           @click="selectMode('typing')">
         <div class="card-icon">⌨️</div>
         <h2 class="card-title">语音输入</h2>
         <p class="card-desc">语音实时识别,追加AI修正并输入</p>
-        <div class="shortcut" v-if="currentMode !== 'typing'">单击选择此模式</div>
+        <div class="shortcut" v-if="!isDeviceConnected">请先连接AI鼠标</div>
+        <div class="shortcut" v-else-if="currentMode !== 'typing'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
+          {{ isRecording ? '按AI键停止' : '按AI键启动' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'typing'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按AI键开始录音' }}
         </div>
       </div>
       <!-- AI翻译卡片 -->
-      <div class="card" :class="{ 'card-selected': currentMode === 'translate' }" @click="selectMode('translate')">
+      <div class="card" 
+           :class="{ 
+             'card-selected': currentMode === 'translate',
+             'card-disabled': !isDeviceConnected 
+           }" 
+           @click="selectMode('translate')">
         <!-- 语言选择区域 -->
         <div class="lang-selector" @click.stop>
           <!-- 源语言 -->
@@ -72,12 +91,12 @@
         <p class="card-desc">语音实时识别,自动翻译并输入</p>
         <div class="shortcut" v-if="currentMode !== 'translate'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? 'Ctrl+Shift+F 停止' : 'Ctrl+Shift+F 启动' }}
+          {{ isRecording ? '按AI键停止' : '按AI键启动' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'translate'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按 Ctrl+Shift+F 开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按AI键开始录音' }}
         </div>
       </div>
     </div>
@@ -93,8 +112,8 @@
  * Home.vue - 首页组件
  * 显示功能卡片，用于选择不同的AI模拟功能
  * - 单击卡片选择模式
- * - 选择后按 Ctrl+Shift+F (Mac: Cmd+Shift+F) 启动录音
- * - 再次按快捷键停止并粘贴
+ * - 选择后按AI键启动录音
+ * - 再次按AI键停止并粘贴
  */
 
 import { onMounted, onUnmounted, ref, computed } from 'vue'
@@ -105,6 +124,8 @@ import { Search } from '@element-plus/icons-vue'
 const currentMode = ref(null)
 // 是否正在录音
 const isRecording = ref(false)
+// 设备是否已连接
+const isDeviceConnected = ref(false)
 
 // ==================== 语言选择 ====================
 // 语言列表
@@ -238,6 +259,10 @@ const notifyLanguageChange = () => {
  * 选择模式
  */
 const selectMode = (mode) => {
+  // 未连接设备时不允许选择
+  if (!isDeviceConnected.value) {
+    return
+  }
   if (currentMode.value === mode) {
     // 已选中该模式，不做处理（通过快捷键启动）
     return
@@ -299,6 +324,19 @@ onMounted(() => {
   // 监听录音状态变化
   window.electron.ipcRenderer.on('recording-state-changed', onRecordingStateChanged)
   window.electron.ipcRenderer.on('mode-selected', onModeSelected)
+  
+  // 监听设备连接状态
+  window.electron.ipcRenderer.on('mouse-connected', (event, data) => {
+    console.log('[Home] AI鼠标已连接', data)
+    isDeviceConnected.value = true
+  })
+  window.electron.ipcRenderer.on('mouse-disconnected', (event, data) => {
+    console.log('[Home] AI鼠标已断开', data)
+    isDeviceConnected.value = false
+    // 断开时重置模式
+    currentMode.value = null
+    isRecording.value = false
+  })
 
   // 监听键盘事件
   document.addEventListener('keydown', handleKeydown)
@@ -308,6 +346,8 @@ onUnmounted(() => {
   // 清理事件监听
   window.electron.ipcRenderer.removeAllListeners('recording-state-changed')
   window.electron.ipcRenderer.removeAllListeners('mode-selected')
+  window.electron.ipcRenderer.removeAllListeners('mouse-connected')
+  window.electron.ipcRenderer.removeAllListeners('mouse-disconnected')
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
@@ -328,21 +368,152 @@ onUnmounted(() => {
   justify-content: center;
   height: 100vh;
   padding: 40px;
-  width: 100%vw
+  width: 100vw;
+  position: relative;
+  transition: box-shadow 0.5s ease;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 连接成功后的霍虹渐变光圈特效 */
+.container.device-connected {
+  box-shadow: inset 0 0 80px rgba(0, 255, 136, 0.1),
+              inset 0 0 150px rgba(0, 200, 255, 0.08),
+              inset 0 0 200px rgba(138, 43, 226, 0.05);
+}
+
+.container.device-connected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 3px solid transparent;
+  background: linear-gradient(#1e1e1e, #1e1e1e) padding-box,
+              linear-gradient(135deg, 
+                #00ff88 0%, 
+                #00d4ff 25%, 
+                #8a2be2 50%, 
+                #ff0080 75%, 
+                #00ff88 100%) border-box;
+  pointer-events: none;
+  animation: neon-border-rotate 4s linear infinite;
+  opacity: 0.7;
+}
+
+.container.device-connected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 136, 0.3) 0%, 
+    rgba(0, 212, 255, 0.2) 25%, 
+    rgba(138, 43, 226, 0.2) 50%, 
+    rgba(255, 0, 128, 0.2) 75%, 
+    rgba(0, 255, 136, 0.3) 100%);
+  filter: blur(20px);
+  pointer-events: none;
+  animation: neon-glow 3s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes neon-border-rotate {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes neon-glow {
+  0%, 100% {
+    opacity: 0.5;
+    filter: blur(20px) hue-rotate(0deg);
+  }
+  50% {
+    opacity: 0.8;
+    filter: blur(25px) hue-rotate(30deg);
+  }
+}
+
+/* 设备连接状态显示 - 中间上方 */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 25px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* 确保在伪元素之上 */
+  position: relative;
+  z-index: 5;
+}
+
+/* Loading 旋转动画 */
+.connection-status .loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(100, 200, 255, 0.3);
+  border-top-color: #64c8ff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connection-status .status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.8);
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+.connection-status .status-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.connection-status.connected .status-text {
+  color: #4ade80;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(74, 222, 128, 0.8); }
+  50% { opacity: 0.8; box-shadow: 0 0 20px rgba(74, 222, 128, 1); }
 }
 
 /* 标题样式 */
 .title {
   font-size: 2.5rem;
   font-weight: 700;
-  margin-bottom: 50px;
+  margin-bottom: 30px;
   color: #fff;
+  /* 确保在伪元素之上 */
+  position: relative;
+  z-index: 5;
 }
 
 /* 卡片容器 */
 .cards {
   display: flex;
   gap: 40px;
+  /* 确保卡片在伪元素之上 */
+  position: relative;
+  z-index: 5;
 }
 
 /* 卡片样式 */
@@ -360,6 +531,18 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   border: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
+}
+
+/* 卡片禁用状态 */
+.card-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card-disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* 语言选择器 */
@@ -543,6 +726,9 @@ onUnmounted(() => {
   font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  /* 确保取消按钮在最上层，不被伪元素遮挡 */
+  position: relative;
+  z-index: 10;
 }
 
 .cancel-btn:hover {
