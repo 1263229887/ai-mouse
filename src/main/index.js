@@ -588,7 +588,7 @@ function stopRecording() {
     return
   }
   
-  logger.info('Main', '硬件4键松开停止录音', { audioDataCount })
+  logger.info('Main', '硬件4键松开停止录音', { audioDataCount })  
   isRecording = false
 
   // 通知主窗口状态变化

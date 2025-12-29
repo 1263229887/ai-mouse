@@ -33,6 +33,12 @@ let DeviceDisconnectedCallback = null
 let DeviceMessageCallback = null
 let DeviceAudioDataCallback = null
 
+// 回调函数原型（延迟初始化，必须是模块级变量）
+let OnDeviceConnectedCallbackPro = null
+let OnDeviceDisconnectedCallbackPro = null
+let OnDeviceMessageCallbackPro = null
+let OnDeviceAudioDataCallbackPro = null
+
 // 事件回调
 let onDeviceConnectedCallback = null
 let onDeviceDisconnectedCallback = null
@@ -79,20 +85,20 @@ function initSDK(debug = true) {
     SDK_getVoiceKey = libm.func('int getVoiceKey(void)')
     SDK_setVoiceKey = libm.func('void setVoiceKey(int index)')
     
-    // 注册设备连接回调
-    const OnDeviceConnectedCallbackPro = koffi.proto('void OnDeviceConnectedCallback(const char* deviceId, int connectionMode)')
+    // 注册设备连接回调（原型赋值给模块级变量）
+    OnDeviceConnectedCallbackPro = koffi.proto('void OnDeviceConnectedCallback(const char* deviceId, int connectionMode)')
     SDK_registerDeviceConnectedListener = libm.func('registerDeviceConnectedCallbackListener', 'void', [koffi.pointer(OnDeviceConnectedCallbackPro)])
     
     // 注册设备断开回调
-    const OnDeviceDisconnectedCallbackPro = koffi.proto('void OnDeviceDisconnectedCallback(const char* deviceId, int connectionMode)')
+    OnDeviceDisconnectedCallbackPro = koffi.proto('void OnDeviceDisconnectedCallback(const char* deviceId, int connectionMode)')
     SDK_registerDeviceDisconnectedListener = libm.func('registerDeviceDisconnectedCallbackListener', 'void', [koffi.pointer(OnDeviceDisconnectedCallbackPro)])
     
     // 注册设备消息回调
-    const OnDeviceMessageCallbackPro = koffi.proto('void OnDeviceMessageCallback(const char* deviceId, const char* data)')
+    OnDeviceMessageCallbackPro = koffi.proto('void OnDeviceMessageCallback(const char* deviceId, const char* data)')
     SDK_registerDeviceMessageListener = libm.func('registerDeviceMessageCallbackListener', 'void', [koffi.pointer(OnDeviceMessageCallbackPro)])
     
     // 注册设备音频数据回调
-    const OnDeviceAudioDataCallbackPro = koffi.proto('void OnDeviceAudioDataCallback(const char* deviceId, unsigned char* data, int length)')
+    OnDeviceAudioDataCallbackPro = koffi.proto('void OnDeviceAudioDataCallback(const char* deviceId, unsigned char* data, int length)')
     SDK_registerDeviceAudioDataListener = libm.func('registerDeviceAudioDataCallbackListener', 'void', [koffi.pointer(OnDeviceAudioDataCallbackPro)])
     
     // 音频控制函数
@@ -106,19 +112,34 @@ function initSDK(debug = true) {
     SDK_getConnectedDeviceCount = libm.func('int getConnectedDeviceCount(void)')
     SDK_getDeviceId = libm.func('const char* getDeviceId(int index)')
     
-    // 先注册回调，确保能捕获到SDK初始化时的设备连接事件
-    // 解决设备在sdkInit时已连接导致回调错过的问题
-    registerCallbacks()
-    
-    // 调用SDK初始化
+    // 先初始化SDK，再注册回调
+    // 顺序重要：与 feature/ai-mouse-test 分支保持一致
+    // 先初始化 SDK 才能正常让 DLL 内部状态就绪
     SDK_sdkInit(debug)
     
-    isInitialized = true
     logger.info('MouseSDK', 'SDK初始化成功')
     
-    // SDK初始化后，主动查询已连接的设备
-    // 解决回调可能没有触发的问题
-    checkConnectedDevices()
+    // 立即设置语音键为4键长按(102) - 用户实际使用的录音键
+    // 这可能触发DLL内部状态刷新，使设备连接回调能够被触发
+    try {
+      const currentVoiceKey = SDK_getVoiceKey()
+      logger.info('MouseSDK', '初始化后当前语音键', { currentVoiceKey })
+      SDK_setVoiceKey(102)
+      const newVoiceKey = SDK_getVoiceKey()
+      logger.info('MouseSDK', '已设置语音键为4键长按(102)', { newVoiceKey })
+    } catch (error) {
+      logger.warn('MouseSDK', '初始化时设置语音键失败', { error: error.message })
+    }
+    
+    // 注册回调函数
+    registerCallbacks()
+    
+    isInitialized = true
+    
+    // SDK初始化后，延迟一段时间再主动查询已连接的设备
+    // 解决DLL内部设备枚举需要时间的问题
+    // 使用多次重试，确保能检测到已连接的设备
+    startDevicePolling()
     
     return true
   } catch (error) {
@@ -215,6 +236,53 @@ function registerCallbacks() {
   logger.info('MouseSDK', '回调函数已注册')
 }
 
+// 设备轮询定时器
+let devicePollingTimer = null
+let devicePollingCount = 0
+const MAX_POLLING_COUNT = 20 // 最多轮询20次（10秒）
+const POLLING_INTERVAL = 500 // 每500ms轮询一次
+
+/**
+ * 启动设备轮询检测
+ * 解决DLL内部设备枚举需要时间的问题
+ */
+function startDevicePolling() {
+  // 如果已经有设备连接，不需要轮询
+  if (connectedDeviceId) {
+    logger.info('MouseSDK', '设备已连接，跳过轮询')
+    return
+  }
+  
+  devicePollingCount = 0
+  
+  // 先立即检查一次
+  checkConnectedDevices()
+  
+  // 如果还没检测到，启动轮询
+  if (!connectedDeviceId) {
+    logger.info('MouseSDK', '启动设备轮询检测')
+    devicePollingTimer = setInterval(() => {
+      devicePollingCount++
+      
+      // 如果已经检测到设备或达到最大次数，停止轮询
+      if (connectedDeviceId || devicePollingCount >= MAX_POLLING_COUNT) {
+        if (devicePollingTimer) {
+          clearInterval(devicePollingTimer)
+          devicePollingTimer = null
+        }
+        if (connectedDeviceId) {
+          logger.info('MouseSDK', '轮询检测到设备已连接', { pollCount: devicePollingCount })
+        } else {
+          logger.info('MouseSDK', '轮询超时，未检测到设备', { pollCount: devicePollingCount })
+        }
+        return
+      }
+      
+      checkConnectedDevices()
+    }, POLLING_INTERVAL)
+  }
+}
+
 /**
  * 主动查询已连接的设备
  * 解决回调可能没有触发的问题
@@ -227,31 +295,40 @@ function checkConnectedDevices() {
   
   try {
     const deviceCount = SDK_getConnectedDeviceCount()
-    logger.info('MouseSDK', '已连接设备数量', { deviceCount })
+    
+    // 只在检测到设备或首次调用时记录日志
+    if (deviceCount > 0 || devicePollingCount === 0) {
+      logger.info('MouseSDK', '查询已连接设备数量', { deviceCount, pollCount: devicePollingCount })
+    }
     
     if (deviceCount > 0) {
       // 获取第一个设备的ID
       const deviceId = SDK_getDeviceId(0)
-      logger.info('MouseSDK', '主动查询到已连接设备', { deviceId })
       
-      if (deviceId && !connectedDeviceId) {
-        // 如果回调没有设置，主动设置
-        connectedDeviceId = deviceId
-        logger.info('MouseSDK', '主动设置已连接设备ID', { deviceId })
+      if (deviceId) {
+        logger.info('MouseSDK', '主动查询到已连接设备', { deviceId })
         
-        // 获取连接模式
-        let connectionMode = 0
-        try {
-          connectionMode = SDK_getConnectionMode ? SDK_getConnectionMode(deviceId) : 0
-        } catch (e) {
-          logger.warn('MouseSDK', '获取连接模式失败', { error: e.message })
+        if (!connectedDeviceId) {
+          // 如果回调没有设置，主动设置
+          connectedDeviceId = deviceId
+          logger.info('MouseSDK', '主动设置已连接设备ID', { deviceId })
+          
+          // 获取连接模式
+          let connectionMode = 0
+          try {
+            connectionMode = SDK_getConnectionMode ? SDK_getConnectionMode(deviceId) : 0
+          } catch (e) {
+            logger.warn('MouseSDK', '获取连接模式失败', { error: e.message })
+          }
+          
+          // 延迟500ms后触发回调，确保回调已设置
+          setTimeout(() => {
+            logger.info('MouseSDK', '主动查询后触发设备连接回调', { deviceId, connectionMode })
+            onDeviceConnectedCallback?.(deviceId, connectionMode)
+          }, 500)
         }
-        
-        // 延迟1秒后触发回调（保持与原回调逻辑一致）
-        setTimeout(() => {
-          logger.info('MouseSDK', '主动查询后触发设备连接回调')
-          onDeviceConnectedCallback?.(deviceId, connectionMode)
-        }, 1000)
+      } else {
+        logger.warn('MouseSDK', '获取设备ID返回空', { deviceCount })
       }
     }
   } catch (error) {
@@ -268,6 +345,12 @@ function closeSDK() {
   }
 
   try {
+    // 清理轮询定时器
+    if (devicePollingTimer) {
+      clearInterval(devicePollingTimer)
+      devicePollingTimer = null
+    }
+    
     SDK_sdkClose()
     isInitialized = false
     connectedDeviceId = null
