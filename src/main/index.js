@@ -16,7 +16,7 @@ let popupWindow = null
 // ==================== 模式状态管理 ====================
 // 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
 let currentMode = null
-// 当前是否正在录音
+// 当前是否正在录音（硬件语音键控制）
 let isRecording = false
 // 鼠标设备是否已连接
 let isMouseConnected = false
@@ -28,6 +28,8 @@ let targetIsoCode = 'EN'
 let sourceLangName = '中文'
 // 目标语言中文名称
 let targetLangName = '英文'
+// 音频数据统计（用于采样日志）
+let audioDataCount = 0
 
 function createWindow() {
   // 创建主窗口
@@ -45,6 +47,14 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    
+    // 主窗口显示后，主动同步设备连接状态
+    // 解决设备在窗口加载前已连接导致状态不同步的问题
+    const status = mouseSDK.getStatus()
+    if (status.isConnected) {
+      logger.info('Main', '主窗口就绪，同步已连接的设备状态', { deviceId: status.deviceId })
+      mainWindow.webContents.send('mouse-connected', { deviceId: status.deviceId, connectionMode: 0 })
+    }
   })
 
   // 主窗口关闭时，同时关闭弹窗
@@ -220,6 +230,19 @@ app.whenReady().then(() => {
    */
   ipcMain.handle('get-log-path', () => {
     return logger.getLogPath()
+  })
+
+  /**
+   * 获取鼠标设备连接状态
+   * 解决窗口加载完成前设备已连接导致状态不同步的问题
+   */
+  ipcMain.handle('get-mouse-status', () => {
+    const status = mouseSDK.getStatus()
+    logger.info('Main', '渲染进程查询鼠标状态', status)
+    return {
+      isConnected: status.isConnected,
+      deviceId: status.deviceId
+    }
   })
 
   // ==================== 点击卡片触发AI输入 ====================
@@ -413,10 +436,11 @@ app.whenReady().then(() => {
     }
   })
 
-  // ==================== 快捷键已移除，改用鼠标中键控制录音 ====================
-  // 双击式交互：第一次按AI键启动录音，第二次按AI键停止录音
+  // ==================== 快捷键已移除，改用硬件4键长按控制录音 ====================
+  // 长按式交互：长按住4键启动录音，松开停止录音
   // 监听逻辑在 handleMouseMessage 函数中实现
-  logger.info('Main', '录音控制已改用AI键（index=96），第一次按下开始录音，第二次按下停止录音')
+  // AI键(index=96)改为打开邮箱网址
+  logger.info('Main', '录音控制已改用硬件4键长按，AI键(index=96)改为打开邮箱网址')
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -444,6 +468,7 @@ app.on('will-quit', () => {
 // ==================== 录音控制函数 ====================
 /**
  * 启动录音
+ * 由硬件4键长按触发
  */
 function startRecording() {
   // 确保只有一个窗口，如果窗口已存在且正在录音，跳过
@@ -459,8 +484,9 @@ function startRecording() {
     popupWindow = null
   }
   
-  logger.info('Main', '鼠标中键启动录音', { currentMode })
+  logger.info('Main', '硬件4键长按启动录音', { currentMode })
   isRecording = true
+  audioDataCount = 0 // 重置音频数据计数
 
   // 根据模式创建对应窗口
   const route = currentMode === 'typing' ? '/typing' : '/translate'
@@ -498,14 +524,19 @@ function startRecording() {
 
   if (popupWindow) {
     const sendMessage = () => {
-      // 发送前再次检查状态，防止中键已松开
+      // 发送前再次检查状态
       if (!isRecording) {
-        logger.info('Main', '中键已松开，取消发送启动消息')
+        logger.info('Main', '已停止录音，取消发送启动消息')
         return
       }
       if (popupWindow && !popupWindow.isDestroyed()) {
-        logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
-        popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
+        logger.info('Main', '发送 start-speech-recognition 消息（硬件录音模式）', { wsUrl, extraParams })
+        // 标记为硬件录音模式
+        popupWindow.webContents.send('start-speech-recognition', { 
+          wsUrl, 
+          extraParams,
+          useHardwareRecording: true // 标记使用硬件录音
+        })
       }
     }
 
@@ -525,6 +556,7 @@ function startRecording() {
 
 /**
  * 停止录音
+ * 由硬件4键松开触发
  */
 function stopRecording() {
   // 如果没有在录音，跳过
@@ -533,7 +565,7 @@ function stopRecording() {
     return
   }
   
-  logger.info('Main', '鼠标中键停止录音')
+  logger.info('Main', '硬件4键松开停止录音', { audioDataCount })
   isRecording = false
 
   // 通知主窗口状态变化
@@ -623,63 +655,122 @@ function initMouseSDK() {
     }
   })
   
-  // 设备消息回调（处理鼠标中键按下/松开事件）
+  // 设备消息回调（处理AI键和录音事件）
   mouseSDK.setOnDeviceMessage((deviceId, message) => {
     handleMouseMessage(deviceId, message)
+  })
+  
+  // 设备音频数据回调（处理硬件录音数据）
+  mouseSDK.setOnDeviceAudioData((deviceId, audioData, length) => {
+    handleDeviceAudioData(deviceId, audioData, length)
   })
   
   logger.info('Main', 'AI鼠标SDK初始化完成')
 }
 
 /**
+ * 处理设备音频数据
+ * 将硬件录音数据转发到渲染进程
+ */
+function handleDeviceAudioData(deviceId, audioData, length) {
+  // 只有在录音中才处理音频数据
+  if (!isRecording) {
+    return
+  }
+  
+  audioDataCount++
+  
+  // 采样日志：每50次记录一次，避免高频日志
+  if (audioDataCount % 50 === 1) {
+    logger.debug('Main', '收到硬件音频数据', { 
+      deviceId, 
+      length, 
+      audioDataCount,
+      // 记录前几个字节用于调试
+      firstBytes: Array.from(audioData.slice(0, 8))
+    })
+  }
+  
+  // 将音频数据转发到渲染进程
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    // 转换为 ArrayBuffer 发送
+    const buffer = Buffer.from(audioData)
+    popupWindow.webContents.send('device-audio-data', { 
+      data: buffer,
+      length: length
+    })
+  }
+}
+
+/**
  * 处理鼠标设备消息
- * 识别AI键的按下事件（双击式交互）
+ * 识别AI键的按下事件（打开邮箱网址）
+ * 识别录音键事件（index=102）控制录音
  */
 function handleMouseMessage(deviceId, message) {
-  // 消息格式: { type: 'deviceKeyEvent', index: 96, status: 1/0 }
-  // index=96 表示AI键单击（index=97是长按）
-  // status=1 表示按下, status=0 表示松开
-  // 双击式交互：第一次按下启动录音，第二次按下停止录音
-  
-  logger.debug('Main', '收到鼠标消息', { deviceId, message })
+  // 记录所有消息用于调试
+  logger.info('Main', '收到鼠标消息', { deviceId, message, messageType: typeof message })
   
   if (typeof message === 'object') {
     const { type, index, status, enabled, access } = message
     
     // 检测AI键单击按下事件 (index=96, status=1)
-    // 只处理按下事件，忽略松开事件
+    // AI键改为打开邮箱网址
     if (type === 'deviceKeyEvent' && index === 96 && status === 1) {
-      logger.info('Main', '检测到AI键按下')
-      handleAIKeyPress()
+      logger.info('Main', '检测到AI键按下，打开邮箱网址: https://mail.danaai.net/')
+      shell.openExternal('https://mail.danaai.net/')
+      return
     }
     
-    // audioEnable/deviceMicrophoneEnable 事件 - 记录但不处理
-    if (type === 'audioEnable' || type === 'deviceMicrophoneEnable') {
-      logger.info('Main', '音频状态事件', { type, enabled, access })
+    // 检测录音键事件 (index=102)
+    // status=1 表示按下开始录音, status=0 表示松开停止录音
+    if (type === 'deviceKeyEvent' && index === 102) {
+      logger.info('Main', '录音键事件', { index, status })
+      if (status === 1) {
+        // 检查是否选中了模式
+        if (!currentMode) {
+          logger.info('Main', '未选择模式，忽略录音启动')
+          return
+        }
+        // 开始录音
+        startRecording()
+      } else if (status === 0) {
+        // 停止录音
+        stopRecording()
+      }
+      return
     }
-  }
-}
-
-/**
- * 处理AI键按下 - 切换录音状态
- * 第一次按下启动录音，第二次按下停止录音
- */
-function handleAIKeyPress() {
-  // 检查是否选中了模式
-  if (!currentMode) {
-    logger.info('Main', 'AI键按下但未选择模式，忽略')
-    return
-  }
-  
-  // 切换录音状态
-  if (!isRecording) {
-    // 第一次按下 - 启动录音
-    logger.info('Main', 'AI键第一次按下 - 启动录音', { currentMode })
-    startRecording()
-  } else {
-    // 第二次按下 - 停止录音
-    logger.info('Main', 'AI键第二次按下 - 停止录音')
-    stopRecording()
+    
+    // 检测 deviceMicrophoneEnable 事件（备用）
+    // enabled=true 表示开始录音, enabled=false 表示停止录音
+    if (type === 'deviceMicrophoneEnable') {
+      logger.info('Main', '麦克风状态变化', { enabled, access })
+      if (enabled) {
+        // 检查是否选中了模式
+        if (!currentMode) {
+          logger.info('Main', '未选择模式，忽略录音启动')
+          return
+        }
+        // 开始录音
+        startRecording()
+      } else {
+        // 停止录音
+        stopRecording()
+      }
+      return
+    }
+    
+    // audioEnable 事件 - 记录
+    if (type === 'audioEnable') {
+      logger.info('Main', '音频启用状态事件', { type, enabled, access })
+      return
+    }
+    
+    // 其他按键事件记录
+    if (type === 'deviceKeyEvent') {
+      logger.info('Main', '按键事件', { index, status })
+      return
+    }
   }
 }
 

@@ -59,6 +59,20 @@ const api = {
    */
   dragPopup: (deltaX, deltaY) => {
     ipcRenderer.send('drag-popup', { deltaX, deltaY })
+  },
+  /**
+   * 监听设备音频数据
+   * @param {Function} callback - (data: Buffer, length: number) => void
+   * @returns {Function} - 取消监听函数
+   */
+  onDeviceAudioData: (callback) => {
+    const listener = (event, { data, length }) => {
+      callback(data, length)
+    }
+    ipcRenderer.on('device-audio-data', listener)
+    return () => {
+      ipcRenderer.removeListener('device-audio-data', listener)
+    }
   }
 }
 

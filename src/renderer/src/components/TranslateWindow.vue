@@ -11,6 +11,7 @@
     <div class="connection-status" v-if="!isComplete">
       <span class="status-icon" :class="statusIconClass">●</span>
       <span>{{ connectionStatus }}</span>
+      <span class="recording-mode" v-if="statusDetail.useHardwareRecording">（硬件录音）</span>
     </div>
     
     <!-- 原文区域（上半部分） -->
@@ -86,6 +87,7 @@ const statusDetail = reactive({
   wsConnected: false,
   wsSentInitConfig: false,
   audioChunksSent: 0,
+  useHardwareRecording: false,
   lastError: null
 })
 // 容器引用
@@ -172,7 +174,7 @@ const statusIconClass = computed(() => {
 const closeDelay = 800
 
 // ==================== 语音识别功能 ====================
-const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
+const initSpeechRecognition = async (wsUrl, extraParams = {}, useHardwareRecording = false) => {
   if (isInitialized) {
     log.info('已经初始化，跳过')
     return
@@ -184,7 +186,7 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
     directionText.value = extraParams.displayDirection
   }
   
-  log.info('开始初始化翻译识别', { wsUrl, extraParams, direction: directionText.value })
+  log.info('开始初始化翻译识别', { wsUrl, extraParams, direction: directionText.value, useHardwareRecording })
   
   try {
     connectionStatus.value = '正在连接...'
@@ -225,7 +227,8 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
 
     speechRecognizer.onStateChange((state) => {
       if (state === 0) {
-        connectionStatus.value = '录音中，再按AI键停止'
+        const modeText = useHardwareRecording ? '硬件录音中，松开语音键停止' : '录音中，再按AI键停止'
+        connectionStatus.value = modeText
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {
@@ -238,10 +241,11 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
       mode: '2pass',
       language: 'ZH',
       denoiser: false,
+      useHardwareRecording, // 传递硬件录音标志
       ...extraParams  // 传入 sourceLanguage, targetLanguage, openTranslate
     })
 
-    log.info('翻译识别初始化成功')
+    log.info('翻译识别初始化成功', { useHardwareRecording })
   } catch (error) {
     connectionStatus.value = '初始化失败'
     statusDetail.lastError = error?.message || '初始化失败'
@@ -279,7 +283,7 @@ onMounted(async () => {
   // 监听主进程发送的启动语音识别消息
   removeStartListener = window.electron.ipcRenderer.on('start-speech-recognition', (event, data) => {
     if (data && data.wsUrl) {
-      initSpeechRecognition(data.wsUrl, data.extraParams || {})
+      initSpeechRecognition(data.wsUrl, data.extraParams || {}, data.useHardwareRecording || false)
     }
   })
 
@@ -390,6 +394,12 @@ onUnmounted(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+.recording-mode {
+  color: #4ade80;
+  font-size: 11px;
+  margin-left: 4px;
 }
 
 /* 区域通用样式 */

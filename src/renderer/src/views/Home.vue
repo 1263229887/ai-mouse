@@ -316,10 +316,59 @@ const handleKeydown = (e) => {
   }
 }
 
+// ==================== 设备状态轮询 ====================
+let pollTimer = null
+const pollMouseStatus = async () => {
+  // 如果已连接，停止轮询
+  if (isDeviceConnected.value) {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    return
+  }
+  
+  try {
+    const status = await window.electron.ipcRenderer.invoke('get-mouse-status')
+    console.log('[Home] 轮询设备状态:', status)
+    if (status && status.isConnected) {
+      console.log('[Home] 设备已连接，同步状态')
+      isDeviceConnected.value = true
+      // 停止轮询
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+  } catch (error) {
+    console.error('[Home] 查询设备状态失败:', error)
+  }
+}
+
 // ==================== 生命周期 ====================
-onMounted(() => {
+onMounted(async () => {
   // 获取语言列表
   fetchLanguageList()
+
+  // 立即查询一次设备状态
+  await pollMouseStatus()
+  
+  // 如果未连接，启动轮询（每2秒查询一次，最多轮询30秒）
+  if (!isDeviceConnected.value) {
+    console.log('[Home] 设备未连接，启动轮询...')
+    let pollCount = 0
+    const maxPolls = 15 // 最多轮询15次（30秒）
+    pollTimer = setInterval(async () => {
+      pollCount++
+      await pollMouseStatus()
+      // 超过最大次数停止轮询
+      if (pollCount >= maxPolls && pollTimer) {
+        console.log('[Home] 轮询超时，停止轮询')
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }, 2000)
+  }
 
   // 监听录音状态变化
   window.electron.ipcRenderer.on('recording-state-changed', onRecordingStateChanged)
@@ -343,6 +392,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 清理轮询定时器
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  
   // 清理事件监听
   window.electron.ipcRenderer.removeAllListeners('recording-state-changed')
   window.electron.ipcRenderer.removeAllListeners('mode-selected')

@@ -35,6 +35,10 @@ class SpeechRecognition {
     this.sampleBuffer = new Int16Array(0) // 音频数据缓冲区
     this.chunkSize = 1920 // 每次发送的数据大小 (120ms @ 16kHz)
     
+    // 硬件录音模式
+    this.useHardwareRecording = false
+    this.removeAudioDataListener = null
+    
     // 状态跟踪
     this.statusDetail = {
       recorderSupported: false,
@@ -44,6 +48,7 @@ class SpeechRecognition {
       wsConnected: false,
       wsSentInitConfig: false,
       audioChunksSent: 0,
+      useHardwareRecording: false,
       lastError: null
     }
     
@@ -68,38 +73,57 @@ class SpeechRecognition {
    */
   async connect(wsUrl, options = {}) {
     const logger = getLogger()
-    logger.info('SpeechRecognition', '开始连接', { wsUrl, options })
+    this.useHardwareRecording = options.useHardwareRecording || false
+    this.updateStatus('useHardwareRecording', this.useHardwareRecording)
+    
+    logger.info('SpeechRecognition', '开始连接', { 
+      wsUrl, 
+      options,
+      useHardwareRecording: this.useHardwareRecording 
+    })
     
     try {
-      // 检查浏览器支持
-      const isSupported = RecorderCore.Support()
-      this.updateStatus('recorderSupported', isSupported)
-      
-      if (!isSupported) {
-        const error = new Error('浏览器不支持录音')
-        this.updateStatus('lastError', error.message)
-        throw error
-      }
-      logger.info('SpeechRecognition', '浏览器支持录音检查通过')
-
-      // 初始化录音器
-      this.recorder = new RecorderCore({
-        type: 'pcm',
-        bitRate: 16,
-        sampleRate: 16000,
-        onProcess: (buffers, powerLevel, bufferDuration, bufferSampleRate, newBufferIdx, asyncEnd, resampledData) => {
-          // 使用重采样后的数据
-          if (resampledData && resampledData.length > 0) {
-            this.handleAudioData(resampledData, powerLevel)
-          }
+      if (this.useHardwareRecording) {
+        // 硬件录音模式：不需要打开电脑麦克风
+        logger.info('SpeechRecognition', '使用硬件录音模式')
+        this.updateStatus('recorderSupported', true)
+        this.updateStatus('recorderOpened', true)
+        
+        // 监听主进程传来的音频数据
+        this.setupHardwareAudioListener()
+        
+      } else {
+        // 电脑录音模式：原有逻辑
+        // 检查浏览器支持
+        const isSupported = RecorderCore.Support()
+        this.updateStatus('recorderSupported', isSupported)
+        
+        if (!isSupported) {
+          const error = new Error('浏览器不支持录音')
+          this.updateStatus('lastError', error.message)
+          throw error
         }
-      })
+        logger.info('SpeechRecognition', '浏览器支持录音检查通过')
 
-      // 打开麦克风
-      logger.info('SpeechRecognition', '正在打开麦克风...')
-      await this.recorder.open()
-      this.updateStatus('recorderOpened', true)
-      logger.info('SpeechRecognition', '麦克风已打开')
+        // 初始化录音器
+        this.recorder = new RecorderCore({
+          type: 'pcm',
+          bitRate: 16,
+          sampleRate: 16000,
+          onProcess: (buffers, powerLevel, bufferDuration, bufferSampleRate, newBufferIdx, asyncEnd, resampledData) => {
+            // 使用重采样后的数据
+            if (resampledData && resampledData.length > 0) {
+              this.handleAudioData(resampledData, powerLevel)
+            }
+          }
+        })
+
+        // 打开麦克风
+        logger.info('SpeechRecognition', '正在打开麦克风...')
+        await this.recorder.open()
+        this.updateStatus('recorderOpened', true)
+        logger.info('SpeechRecognition', '麦克风已打开')
+      }
 
       // 连接 WebSocket
       logger.info('SpeechRecognition', '正在连接 WebSocket...', { wsUrl })
@@ -123,6 +147,216 @@ class SpeechRecognition {
       this.updateStatus('lastError', error.message)
       this.onErrorCallback?.(error)
       throw error
+    }
+  }
+
+  /**
+   * 设置硬件音频数据监听器
+   */
+  setupHardwareAudioListener() {
+    const logger = getLogger()
+    logger.info('SpeechRecognition', '设置硬件音频数据监听器')
+    
+    // 初始化音频收集缓冲区（用于保存完整音频）
+    this.allAudioData = []
+    this.hardwareAudioCount = 0
+    
+    // 监听主进程发送的音频数据
+    if (window.api && window.api.onDeviceAudioData) {
+      this.removeAudioDataListener = window.api.onDeviceAudioData((data, length) => {
+        this.hardwareAudioCount++
+        // 采样日志：每50次记录一次
+        if (this.hardwareAudioCount % 50 === 1) {
+          // 获取前几个字节用于调试
+          let firstBytes = null
+          if (data && data.type === 'Buffer' && Array.isArray(data.data)) {
+            firstBytes = data.data.slice(0, 8)
+          } else if (Array.isArray(data)) {
+            firstBytes = data.slice(0, 8)
+          }
+          
+          logger.info('SpeechRecognition', '收到硬件音频数据', {
+            count: this.hardwareAudioCount,
+            length,
+            dataType: typeof data,
+            hasBufferType: data?.type === 'Buffer',
+            dataLength: data?.data?.length || data?.length,
+            firstBytes
+          })
+        }
+        this.handleHardwareAudioData(data, length)
+      })
+      logger.info('SpeechRecognition', '硬件音频数据监听器已设置')
+    } else {
+      logger.error('SpeechRecognition', '无法设置硬件音频监听器: window.api.onDeviceAudioData 不存在')
+    }
+  }
+
+  /**
+   * 处理硬件音频数据
+   * SDK输出格式: PCM 16kHz 16bit 单声道 (unsigned char*)
+   * 需要转换为 Int16Array
+   */
+  handleHardwareAudioData(data, length) {
+    const logger = getLogger()
+    
+    if (!this.isRecording || !this.isConnected) {
+      return
+    }
+    
+    // 将数据转换为 Int16Array
+    // IPC 传输时 Buffer 会被序列化为 { type: 'Buffer', data: [...] }
+    let pcmData
+    let rawBytes
+    
+    try {
+      // 检查数据类型并转换
+      if (data && data.type === 'Buffer' && Array.isArray(data.data)) {
+        // IPC 序列化的 Buffer 对象
+        rawBytes = new Uint8Array(data.data)
+        pcmData = new Int16Array(rawBytes.buffer)
+      } else if (data instanceof Uint8Array) {
+        rawBytes = data
+        pcmData = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2)
+      } else if (data instanceof ArrayBuffer) {
+        rawBytes = new Uint8Array(data)
+        pcmData = new Int16Array(data)
+      } else if (Array.isArray(data)) {
+        // 纯数组
+        rawBytes = new Uint8Array(data)
+        pcmData = new Int16Array(rawBytes.buffer)
+      } else if (data && typeof data === 'object' && data.data) {
+        // 其他序列化格式
+        rawBytes = new Uint8Array(data.data)
+        pcmData = new Int16Array(rawBytes.buffer)
+      } else {
+        logger.error('SpeechRecognition', '未知的音频数据格式', {
+          dataType: typeof data,
+          constructor: data?.constructor?.name,
+          keys: data ? Object.keys(data).slice(0, 10) : null,
+          hasType: data?.type,
+          hasData: !!data?.data
+        })
+        return
+      }
+      
+      // 保存原始字节用于调试
+      if (this.allAudioData && rawBytes) {
+        this.allAudioData.push(new Uint8Array(rawBytes))
+      }
+      
+    } catch (error) {
+      logger.error('SpeechRecognition', '音频数据转换失败', {
+        message: error.message,
+        dataType: typeof data,
+        hasType: data?.type,
+        isArray: Array.isArray(data?.data)
+      })
+      return
+    }
+    
+    // 缓冲音频数据
+    const newBuffer = new Int16Array(this.sampleBuffer.length + pcmData.length)
+    newBuffer.set(this.sampleBuffer, 0)
+    newBuffer.set(pcmData, this.sampleBuffer.length)
+    this.sampleBuffer = newBuffer
+
+    // 分块发送，保持与电脑录音一致的分块大小 (1920 samples)
+    while (this.sampleBuffer.length >= this.chunkSize) {
+      const sendBuffer = this.sampleBuffer.slice(0, this.chunkSize)
+      this.sampleBuffer = this.sampleBuffer.slice(this.chunkSize)
+      this.sendAudio(sendBuffer)
+      // 更新发送统计
+      this.statusDetail.audioChunksSent++
+      
+      // 采样日志
+      if (this.statusDetail.audioChunksSent % 20 === 1) {
+        logger.info('SpeechRecognition', '发送音频块', {
+          chunksSent: this.statusDetail.audioChunksSent,
+          chunkSize: sendBuffer.length
+        })
+      }
+    }
+  }
+
+  /**
+   * 保存录音数据为 WAV 文件（调试用）
+   */
+  saveAudioAsWav() {
+    const logger = getLogger()
+    
+    if (!this.allAudioData || this.allAudioData.length === 0) {
+      logger.warn('SpeechRecognition', '没有音频数据可保存')
+      return null
+    }
+    
+    // 合并所有音频数据
+    const totalLength = this.allAudioData.reduce((sum, arr) => sum + arr.length, 0)
+    const mergedData = new Uint8Array(totalLength)
+    let offset = 0
+    for (const chunk of this.allAudioData) {
+      mergedData.set(chunk, offset)
+      offset += chunk.length
+    }
+    
+    logger.info('SpeechRecognition', '合并音频数据', {
+      chunks: this.allAudioData.length,
+      totalBytes: totalLength
+    })
+    
+    // 创建 WAV 文件头
+    const sampleRate = 16000
+    const numChannels = 1
+    const bitsPerSample = 16
+    const byteRate = sampleRate * numChannels * bitsPerSample / 8
+    const blockAlign = numChannels * bitsPerSample / 8
+    const dataSize = mergedData.length
+    const fileSize = 44 + dataSize - 8
+    
+    const wavBuffer = new ArrayBuffer(44 + dataSize)
+    const view = new DataView(wavBuffer)
+    
+    // RIFF chunk
+    this.writeString(view, 0, 'RIFF')
+    view.setUint32(4, fileSize, true)
+    this.writeString(view, 8, 'WAVE')
+    
+    // fmt chunk
+    this.writeString(view, 12, 'fmt ')
+    view.setUint32(16, 16, true) // chunk size
+    view.setUint16(20, 1, true) // PCM format
+    view.setUint16(22, numChannels, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, byteRate, true)
+    view.setUint16(32, blockAlign, true)
+    view.setUint16(34, bitsPerSample, true)
+    
+    // data chunk
+    this.writeString(view, 36, 'data')
+    view.setUint32(40, dataSize, true)
+    
+    // 写入音频数据
+    const wavData = new Uint8Array(wavBuffer)
+    wavData.set(mergedData, 44)
+    
+    // 创建 Blob 并下载
+    const blob = new Blob([wavBuffer], { type: 'audio/wav' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hardware_recording_${Date.now()}.wav`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    logger.info('SpeechRecognition', 'WAV 文件已保存', { filename: a.download })
+    return a.download
+  }
+  
+  writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i))
     }
   }
 
@@ -251,13 +485,22 @@ class SpeechRecognition {
    */
   startRecording() {
     const logger = getLogger()
-    if (this.recorder && !this.isRecording) {
-      logger.info('SpeechRecognition', '开始录音')
-      this.isRecording = true
-      this.sampleBuffer = new Int16Array(0)
-      this.recorder.start()
-      this.updateStatus('recorderStarted', true)
+    if (this.isRecording) {
+      logger.info('SpeechRecognition', '已在录音中')
+      return
     }
+    
+    logger.info('SpeechRecognition', '开始录音', { useHardwareRecording: this.useHardwareRecording })
+    this.isRecording = true
+    this.sampleBuffer = new Int16Array(0)
+    
+    if (!this.useHardwareRecording && this.recorder) {
+      // 电脑录音模式：启动录音器
+      this.recorder.start()
+    }
+    // 硬件录音模式：不需要主动启动，音频数据会通过回调自动到达
+    
+    this.updateStatus('recorderStarted', true)
   }
 
   /**
@@ -364,17 +607,33 @@ class SpeechRecognition {
    */
   stop() {
     const logger = getLogger()
-    logger.info('SpeechRecognition', '停止录音')
+    logger.info('SpeechRecognition', '停止录音', { 
+      useHardwareRecording: this.useHardwareRecording,
+      audioChunksSent: this.statusDetail.audioChunksSent,
+      hardwareAudioCount: this.hardwareAudioCount
+    })
+    
+    // 硬件录音模式：保存 WAV 文件用于调试
+    if (this.useHardwareRecording && this.allAudioData && this.allAudioData.length > 0) {
+      logger.info('SpeechRecognition', '硬件录音模式，保存 WAV 文件用于调试', {
+        chunks: this.allAudioData.length
+      })
+      this.saveAudioAsWav()
+    }
     
     // 停止录音
-    if (this.recorder && this.isRecording) {
+    if (this.isRecording) {
       this.isRecording = false
       this.updateStatus('recorderStarted', false)
-      this.recorder.stop(() => {
-        logger.info('SpeechRecognition', '录音已停止')
-      }, (err) => {
-        logger.error('SpeechRecognition', '停止录音失败', { message: err?.message })
-      })
+      
+      if (!this.useHardwareRecording && this.recorder) {
+        // 电脑录音模式：停止录音器
+        this.recorder.stop(() => {
+          logger.info('SpeechRecognition', '录音已停止')
+        }, (err) => {
+          logger.error('SpeechRecognition', '停止录音失败', { message: err?.message })
+        })
+      }
     }
 
     // 发送剩余的音频数据
@@ -404,7 +663,15 @@ class SpeechRecognition {
    */
   close() {
     const logger = getLogger()
-    logger.info('SpeechRecognition', '关闭连接并释放资源')
+    logger.info('SpeechRecognition', '关闭连接并释放资源', { 
+      useHardwareRecording: this.useHardwareRecording 
+    })
+    
+    // 移除硬件音频数据监听器
+    if (this.removeAudioDataListener) {
+      this.removeAudioDataListener()
+      this.removeAudioDataListener = null
+    }
     
     // 停止录音
     if (this.recorder) {
@@ -433,8 +700,11 @@ class SpeechRecognition {
       wsConnected: false,
       wsSentInitConfig: false,
       audioChunksSent: 0,
+      useHardwareRecording: false,
       lastError: null
     }
+    
+    this.useHardwareRecording = false
     
     logger.info('SpeechRecognition', '资源已释放')
   }

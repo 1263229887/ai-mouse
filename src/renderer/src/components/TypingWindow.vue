@@ -11,6 +11,7 @@
     <div class="connection-status" v-if="!isComplete">
       <span class="status-icon" :class="statusIconClass">●</span>
       <span>{{ connectionStatus }}</span>
+      <span class="recording-mode" v-if="statusDetail.useHardwareRecording">（硬件录音）</span>
     </div>
     
     <!-- 详细状态信息（调试模式） -->
@@ -94,6 +95,7 @@ const statusDetail = reactive({
   wsConnected: false,
   wsSentInitConfig: false,
   audioChunksSent: 0,
+  useHardwareRecording: false,
   lastError: null
 })
 // 是否显示调试信息
@@ -203,8 +205,9 @@ const closeDelay = 800
  * 初始化语音识别
  * @param {string} wsUrl - WebSocket 服务器地址
  * @param {Object} extraParams - 额外参数
+ * @param {boolean} useHardwareRecording - 是否使用硬件录音
  */
-const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
+const initSpeechRecognition = async (wsUrl, extraParams = {}, useHardwareRecording = false) => {
   // 防止重复初始化
   if (isInitialized) {
     log.info('已经初始化，跳过')
@@ -212,7 +215,7 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
   }
   isInitialized = true
   
-  log.info('开始初始化', { wsUrl, extraParams })
+  log.info('开始初始化', { wsUrl, extraParams, useHardwareRecording })
   
   try {
     connectionStatus.value = '正在连接...'
@@ -256,7 +259,8 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
     speechRecognizer.onStateChange((state) => {
       log.info('连接状态变化', { state })
       if (state === 0) {
-        connectionStatus.value = '录音中，再按AI键停止'
+        const modeText = useHardwareRecording ? '硬件录音中，松开语音键停止' : '录音中，再按AI键停止'
+        connectionStatus.value = modeText
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {
@@ -269,10 +273,11 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
       mode: '2pass',
       language: 'ZH',
       denoiser: false,
+      useHardwareRecording, // 传递硬件录音标志
       ...extraParams
     })
 
-    log.info('语音识别初始化成功', { wsUrl })
+    log.info('语音识别初始化成功', { wsUrl, useHardwareRecording })
   } catch (error) {
     log.error('初始化语音识别失败', { 
       message: error?.message,
@@ -333,7 +338,7 @@ onMounted(async () => {
   removeStartListener = window.electron.ipcRenderer.on('start-speech-recognition', (event, data) => {
     log.info('收到启动语音识别消息', data)
     if (data && data.wsUrl) {
-      initSpeechRecognition(data.wsUrl, data.extraParams || {})
+      initSpeechRecognition(data.wsUrl, data.extraParams || {}, data.useHardwareRecording || false)
     }
   })
 
@@ -487,6 +492,12 @@ onUnmounted(() => {
   50% {
     opacity: 0.5;
   }
+}
+
+.recording-mode {
+  color: #4ade80;
+  font-size: 11px;
+  margin-left: 4px;
 }
 
 /* 文字显示区域 */
