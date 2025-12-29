@@ -37,7 +37,7 @@ function createWindow() {
   // 创建主窗口
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 680,
+    height: 750,
     show: false,
     autoHideMenuBar: true,
     icon,
@@ -262,6 +262,30 @@ app.whenReady().then(() => {
           break // 连接成功，退出重试
         }
       }
+    }
+    
+    return {
+      isConnected: status.isConnected,
+      deviceId: status.deviceId
+    }
+  })
+
+  /**
+   * 手动重新连接鼠标设备
+   * 用于在连接失败后手动重试
+   */
+  ipcMain.handle('reconnect-mouse', async () => {
+    logger.info('Main', '渲染进程请求重新连接鼠标')
+    mouseSDK.reconnectDevice()
+    
+    // 等待5秒后返回状态
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    const status = mouseSDK.getStatus()
+    logger.info('Main', '重新连接后状态', status)
+    
+    // 如果连接成功，通知主窗口
+    if (status.isConnected && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mouse-connected', { deviceId: status.deviceId, connectionMode: 0 })
     }
     
     return {
@@ -503,11 +527,46 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 应用退出时注销所有快捷键并关闭SDK
-app.on('will-quit', () => {
+// 标记是否已经在关闭过程中
+let isQuitting = false
+
+// 应用退出前，先等待SDK断开回调
+app.on('before-quit', async (event) => {
+  // 如果已经在关闭过程中，不重复处理
+  if (isQuitting) {
+    return
+  }
+  
+  // 检查是否有连接的设备
+  const status = mouseSDK.getStatus()
+  if (!status.isConnected) {
+    // 没有连接的设备，直接关闭SDK并退出
+    globalShortcut.unregisterAll()
+    mouseSDK.closeSDK()
+    logger.info('Main', '应用退出，已清理资源（无连接设备）')
+    return
+  }
+  
+  // 有连接的设备，阻止默认退出，等待断开回调
+  event.preventDefault()
+  isQuitting = true
+  
+  logger.info('Main', '应用退出，等待设备断开回调...', { deviceId: status.deviceId })
+  
+  // 注销快捷键
   globalShortcut.unregisterAll()
-  mouseSDK.closeSDK()
-  logger.info('Main', '应用退出，已清理资源')
+  
+  // 异步关闭SDK，等待断开回调
+  const success = await mouseSDK.closeSDKAsync(3000)
+  
+  if (success) {
+    logger.info('Main', '应用退出，已收到设备断开回调')
+  } else {
+    logger.warn('Main', '应用退出，等待断开回调超时')
+  }
+  
+  // 继续退出应用
+  app.exit(0)
 })
 
 // ==================== 录音控制函数 ====================
@@ -726,7 +785,7 @@ function initMouseSDK() {
   // DLL内部设备枚举可能需要时间，延迟一段时间让SDK稳定
   // 启动轮询检测，每500ms检查一次，最多检测20次（10秒）
   let checkCount = 0
-  const maxChecks = 20 // 增加到 20 次（10秒）
+  const maxChecks = 60 // 增加到 60 次（30秒），解决快速重启问题
   const checkInterval = setInterval(() => {
     checkCount++
     const status = mouseSDK.getStatus()

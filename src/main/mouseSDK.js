@@ -189,6 +189,12 @@ function registerCallbacks() {
     if (connectedDeviceId === deviceId) {
       connectedDeviceId = null
     }
+    
+    // 如果是关闭SDK时的断开回调，触发resolve
+    if (closeDisconnectResolve) {
+      closeDisconnectResolve()
+    }
+    
     onDeviceDisconnectedCallback?.(deviceId, connectionMode)
   }
   
@@ -339,6 +345,12 @@ function checkConnectedDevices() {
 /**
  * 关闭SDK
  */
+// 关闭SDK时的断开回调Promise resolve
+let closeDisconnectResolve = null
+
+/**
+ * 关闭SDK（同步版本，不等待回调）
+ */
 function closeSDK() {
   if (!isInitialized) {
     return
@@ -358,6 +370,67 @@ function closeSDK() {
   } catch (error) {
     logger.error('MouseSDK', '关闭SDK失败', { error: error.message })
   }
+}
+
+/**
+ * 关闭SDK（异步版本，等待设备断开回调后完成）
+ * @param {number} timeout - 超时时间（毫秒），默认3秒
+ * @returns {Promise<boolean>} - 是否成功收到断开回调
+ */
+function closeSDKAsync(timeout = 3000) {
+  return new Promise((resolve) => {
+    if (!isInitialized) {
+      logger.info('MouseSDK', 'SDK未初始化，直接返回')
+      resolve(true)
+      return
+    }
+    
+    // 如果没有连接的设备，直接关闭SDK
+    if (!connectedDeviceId) {
+      logger.info('MouseSDK', '没有已连接设备，直接关闭SDK')
+      closeSDK()
+      resolve(true)
+      return
+    }
+    
+    logger.info('MouseSDK', '等待设备断开回调后关闭...', { deviceId: connectedDeviceId })
+    
+    // 设置断开回调的resolve
+    closeDisconnectResolve = () => {
+      logger.info('MouseSDK', '收到设备断开回调，完成关闭')
+      closeDisconnectResolve = null
+      resolve(true)
+    }
+    
+    // 设置超时
+    const timeoutId = setTimeout(() => {
+      if (closeDisconnectResolve) {
+        logger.warn('MouseSDK', '等待断开回调超时，强制关闭')
+        closeDisconnectResolve = null
+        closeSDK()
+        resolve(false)
+      }
+    }, timeout)
+    
+    try {
+      // 清理轮询定时器
+      if (devicePollingTimer) {
+        clearInterval(devicePollingTimer)
+        devicePollingTimer = null
+      }
+      
+      // 调用sdkClose，这会触发设备断开回调
+      SDK_sdkClose()
+      isInitialized = false
+      logger.info('MouseSDK', '已调用sdkClose，等待断开回调...')
+      
+    } catch (error) {
+      logger.error('MouseSDK', '关闭SDK失败', { error: error.message })
+      clearTimeout(timeoutId)
+      closeDisconnectResolve = null
+      resolve(false)
+    }
+  })
 }
 
 /**
@@ -524,5 +597,6 @@ export default {
   getConnectedDeviceId,
   getConnectionMode,
   setVoiceKey,
-  getVoiceKey
+  getVoiceKey,
+  closeSDKAsync
 }
