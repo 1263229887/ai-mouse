@@ -30,6 +30,8 @@ let sourceLangName = '中文'
 let targetLangName = '英文'
 // 音频数据统计（用于采样日志）
 let audioDataCount = 0
+// 录音源模式: 'mouse' = 鼠标硬件录音, 'computer' = 电脑麦克风录音
+let recordingSource = 'mouse'
 
 function createWindow() {
   // 创建主窗口
@@ -376,6 +378,26 @@ app.whenReady().then(() => {
   })
 
   /**
+   * 监听录音源切换事件
+   * 在电脑录音和AI鼠标录音之间切换
+   */
+  ipcMain.on('switch-recording-source', (event, source) => {
+    logger.info('Main', '切换录音源', { oldSource: recordingSource, newSource: source })
+    recordingSource = source
+    
+    if (source === 'computer') {
+      // 电脑录音模式：禁用SDK默认录音行为
+      // 设置语音键为0，让按键事件只触发消息而不录音
+      mouseSDK.setVoiceKey(0)
+      logger.info('Main', '已禁用SDK默认录音，切换到电脑录音模式')
+    } else {
+      // 鼠标录音模式：启用SDK录音（4键长按）
+      mouseSDK.setVoiceKey(102)
+      logger.info('Main', '已启用SDK默认录音，切换到鼠标录音模式')
+    }
+  })
+
+  /**
    * 监听取消模式选择事件
    */
   ipcMain.on('cancel-mode', () => {
@@ -507,7 +529,8 @@ function startRecording() {
     popupWindow = null
   }
   
-  logger.info('Main', '硬件4键长按启动录音', { currentMode })
+  const useHardware = recordingSource === 'mouse'
+  logger.info('Main', '硬件4键长按启动录音', { currentMode, recordingSource, useHardwareRecording: useHardware })
   isRecording = true
   audioDataCount = 0 // 重置音频数据计数
 
@@ -543,7 +566,7 @@ function startRecording() {
     }
   }
 
-  logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
+  logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams, useHardwareRecording: useHardware })
 
   if (popupWindow) {
     const sendMessage = () => {
@@ -553,12 +576,12 @@ function startRecording() {
         return
       }
       if (popupWindow && !popupWindow.isDestroyed()) {
-        logger.info('Main', '发送 start-speech-recognition 消息（硬件录音模式）', { wsUrl, extraParams })
-        // 标记为硬件录音模式
+        const modeText = useHardware ? '鼠标硬件录音' : '电脑麦克风录音'
+        logger.info('Main', `发送 start-speech-recognition 消息（${modeText}模式）`, { wsUrl, extraParams })
         popupWindow.webContents.send('start-speech-recognition', { 
           wsUrl, 
           extraParams,
-          useHardwareRecording: true // 标记使用硬件录音
+          useHardwareRecording: useHardware // 根据录音源模式设置
         })
       }
     }

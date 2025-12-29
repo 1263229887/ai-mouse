@@ -9,6 +9,24 @@
       <span class="status-indicator" v-else></span>
       <span class="status-text">{{ isDeviceConnected ? 'AI鼠标已连接' : '正在连接AI鼠标...' }}</span>
     </div>
+
+    <!-- 录音源切换 Tab -->
+    <div class="recording-source-tabs" v-if="isDeviceConnected">
+      <div 
+        class="tab-item" 
+        :class="{ 'active': recordingSource === 'mouse' }"
+        @click="switchRecordingSource('mouse')">
+        <span class="tab-icon">🖱️</span>
+        <span class="tab-text">鼠标录音</span>
+      </div>
+      <div 
+        class="tab-item" 
+        :class="{ 'active': recordingSource === 'computer' }"
+        @click="switchRecordingSource('computer')">
+        <span class="tab-icon">🎤</span>
+        <span class="tab-text">电脑录音</span>
+      </div>
+    </div>
     
     <div class="cards">
       <!-- AI输入卡片 -->
@@ -128,6 +146,8 @@ const isRecording = ref(false)
 const isDeviceConnected = ref(false)
 // 是否正在连接中（用于显示loading效果）
 const isConnecting = ref(true)
+// 录音源模式: 'mouse' = 鼠标硬件录音, 'computer' = 电脑麦克风录音
+const recordingSource = ref('mouse')
 
 // ==================== 语言选择 ====================
 // 语言列表
@@ -254,6 +274,20 @@ const notifyLanguageChange = () => {
       targetLangName: getLangName(targetIsoCode.value)
     })
   }
+}
+
+/**
+ * 切换录音源
+ * @param {string} source - 'mouse' 或 'computer'
+ */
+const switchRecordingSource = (source) => {
+  if (recordingSource.value === source) return
+  
+  recordingSource.value = source
+  console.log('[Home] 切换录音源:', source)
+  
+  // 通知主进程切换录音源
+  window.electron.ipcRenderer.send('switch-recording-source', source)
 }
 
 // ==================== 事件处理函数 ====================
@@ -571,6 +605,51 @@ onUnmounted(() => {
 @keyframes pulse-green {
   0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(74, 222, 128, 0.8); }
   50% { opacity: 0.8; box-shadow: 0 0 20px rgba(74, 222, 128, 1); }
+}
+
+/* 录音源切换 Tab 样式 */
+.recording-source-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 20px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  z-index: 5;
+}
+
+.recording-source-tabs .tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.recording-source-tabs .tab-item:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.recording-source-tabs .tab-item.active {
+  background: linear-gradient(135deg, rgba(100, 200, 255, 0.3), rgba(74, 222, 128, 0.3));
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(100, 200, 255, 0.3);
+}
+
+.recording-source-tabs .tab-icon {
+  font-size: 14px;
+}
+
+.recording-source-tabs .tab-text {
+  font-weight: 500;
 }
 
 /* 标题样式 */

@@ -472,6 +472,45 @@ function getConnectionMode(deviceId) {
   }
 }
 
+/**
+ * 设置语音键
+ * @param {number} index - 语音键索引 (0=禁用, 102=4键长按)
+ * @returns {boolean} - 操作是否成功
+ */
+function setVoiceKey(index) {
+  if (!isInitialized || !SDK_setVoiceKey) {
+    logger.warn('MouseSDK', '设置语音键失败：SDK未初始化')
+    return false
+  }
+  
+  try {
+    SDK_setVoiceKey(index)
+    const newVoiceKey = SDK_getVoiceKey()
+    logger.info('MouseSDK', '设置语音键', { index, newVoiceKey })
+    return true
+  } catch (error) {
+    logger.error('MouseSDK', '设置语音键失败', { error: error.message })
+    return false
+  }
+}
+
+/**
+ * 获取当前语音键设置
+ * @returns {number} - 语音键索引
+ */
+function getVoiceKey() {
+  if (!isInitialized || !SDK_getVoiceKey) {
+    return -1
+  }
+  
+  try {
+    return SDK_getVoiceKey()
+  } catch (error) {
+    logger.error('MouseSDK', '获取语音键失败', { error: error.message })
+    return -1
+  }
+}
+
 export default {
   initSDK,
   closeSDK,
@@ -483,5 +522,7 @@ export default {
   getAudioEnable,
   getStatus,
   getConnectedDeviceId,
-  getConnectionMode
+  getConnectionMode,
+  setVoiceKey,
+  getVoiceKey
 }
