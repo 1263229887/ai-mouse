@@ -39,9 +39,74 @@ const loggerAPI = {
   }
 }
 
+// ==================== AI鼠标SDK API ====================
+const mouseSDKAPI = {
+  /**
+   * 获取SDK状态
+   */
+  getSDKStatus: () => {
+    return ipcRenderer.invoke('mouse-sdk-get-status')
+  },
+
+  /**
+   * 启用/禁用鼠标麦克风
+   * @param {boolean} enable - 是否启用
+   */
+  setMicrophoneEnable: (enable) => {
+    return ipcRenderer.invoke('mouse-sdk-set-microphone', enable)
+  },
+
+  /**
+   * 获取设备信息
+   */
+  getDeviceInfo: () => {
+    return ipcRenderer.invoke('mouse-sdk-get-device-info')
+  },
+
+  /**
+   * 监听设备连接事件
+   * @param {Function} callback - 回调函数
+   */
+  onDeviceConnected: (callback) => {
+    return ipcRenderer.on('mouse-device-connected', (event, data) => callback(data))
+  },
+
+  /**
+   * 监听设备断开事件
+   * @param {Function} callback - 回调函数
+   */
+  onDeviceDisconnected: (callback) => {
+    return ipcRenderer.on('mouse-device-disconnected', (event, data) => callback(data))
+  },
+
+  /**
+   * 监听音频数据事件
+   * @param {Function} callback - 回调函数 ({ audioBuffer, length }) => void
+   */
+  onAudioData: (callback) => {
+    return ipcRenderer.on('mouse-audio-data', (event, data) => callback(data))
+  },
+
+  /**
+   * 移除音频数据监听
+   */
+  removeAudioDataListener: () => {
+    ipcRenderer.removeAllListeners('mouse-audio-data')
+  },
+
+  /**
+   * 移除设备事件监听
+   */
+  removeDeviceListeners: () => {
+    ipcRenderer.removeAllListeners('mouse-device-connected')
+    ipcRenderer.removeAllListeners('mouse-device-disconnected')
+  }
+}
+
 // Custom APIs for renderer
 const api = {
   logger: loggerAPI,
+  mouseSDK: mouseSDKAPI,
   /**
    * 调整窗口高度
    */
@@ -61,36 +126,29 @@ const api = {
     ipcRenderer.send('drag-popup', { deltaX, deltaY })
   },
   
-  // ==================== 蓝牙相关 API ====================
+  // ==================== AI键录音事件 ====================
   /**
-   * 获取蓝牙连接状态
+   * 监听开始录音事件（AI键按下时触发）
+   * @param {Function} callback - ({ mode, sourceIsoCode, targetIsoCode, sourceLangName, targetLangName }) => void
    */
-  getBluetoothStatus: () => {
-    return ipcRenderer.invoke('get-bluetooth-status')
+  onStartRecording: (callback) => {
+    return ipcRenderer.on('start-recording', (event, data) => callback(data))
   },
+  
   /**
-   * 通知主进程蓝牙状态变化
+   * 监听停止录音事件（AI键松开时触发）
+   * @param {Function} callback - () => void
    */
-  notifyBluetoothStatusChanged: (connected, deviceName) => {
-    ipcRenderer.send('bluetooth-status-changed', { connected, deviceName })
+  onStopRecording: (callback) => {
+    return ipcRenderer.on('stop-recording', (event) => callback())
   },
+  
   /**
-   * 监听蓝牙连接状态变化
+   * 移除录音事件监听
    */
-  onBluetoothConnectionChanged: (callback) => {
-    ipcRenderer.on('bluetooth-connection-changed', (event, data) => callback(data))
-  },
-  /**
-   * 请求主进程触发自动重连（通过模拟用户点击）
-   */
-  triggerAutoReconnect: () => {
-    ipcRenderer.send('trigger-auto-reconnect')
-  },
-  /**
-   * 监听执行自动重连事件
-   */
-  onExecuteAutoReconnect: (callback) => {
-    ipcRenderer.on('execute-auto-reconnect', () => callback())
+  removeRecordingListeners: () => {
+    ipcRenderer.removeAllListeners('start-recording')
+    ipcRenderer.removeAllListeners('stop-recording')
   }
 }
 

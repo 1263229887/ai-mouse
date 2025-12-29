@@ -1,6 +1,23 @@
 /**
  * WebSocket 语音识别工具类
  * 基于 FunASR 实时语音识别服务
+ * 
+ * ==================== 重要说明 ====================
+ * 这是旧的录音方式，使用浏览器 Web Audio API (RecorderCore) 录音
+ * 
+ * 新的方式请使用 mouseSpeechRecognition.js
+ * 新方式通过AI鼠标硬件SDK获取音频数据
+ * 
+ * 如果新方式有数据格式不对的问题，可以参考本文件的实现：
+ * - 音频数据格式: 16kHz 采样率, 16bit PCM, 单声道
+ * - 数据块大小: chunkSize = 1920 (120ms @ 16kHz)
+ * - WebSocket初始化配置: 见 connectWebSocket 函数
+ * - 停止消息格式: 见 stop 函数
+ * 
+ * 如果需要切换回这个旧方式，请在组件中修改导入：
+ * - TypingWindow.vue: import SpeechRecognition from '../utils/speechRecognition.js'
+ * - TranslateWindow.vue: import SpeechRecognition from '../utils/speechRecognition.js'
+ * ==================== 重要说明 ====================
  */
 
 import RecorderCore from './recorder.js'

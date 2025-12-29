@@ -60,6 +60,14 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+// ==================== 录音方式切换 ====================
+// 切换录音模式：'mouse' 使用鼠标麦克风，'pc' 使用电脑麦克风
+// 如果鼠标录音没有识别结果，可以尝试切换到 'pc' 模式进行对比测试
+const RECORDING_MODE = 'pc'  // 可选值：'mouse' | 'pc'
+
+// 新方式：使用AI鼠标硬件SDK录音
+import MouseSpeechRecognition from '../utils/mouseSpeechRecognition.js'
+// 旧方式：使用浏览器Web Audio API录音
 import SpeechRecognition from '../utils/speechRecognition.js'
 
 // ==================== 日志工具 ====================
@@ -87,9 +95,14 @@ const isComplete = ref(false)
 const connectionStatus = ref('等待启动...')
 // 详细状态信息
 const statusDetail = reactive({
-  recorderSupported: false,
-  recorderOpened: false,
-  recorderStarted: false,
+  // 新方式：鼠标SDK状态
+  mouseConnected: false,      // 鼠标设备是否已连接
+  microphoneEnabled: false,   // 鼠标麦克风是否已启用
+  recorderStarted: false,     // 是否正在接收音频
+  // 旧方式字段（备用，如果切换回旧方式需要这些字段）
+  // recorderSupported: false,
+  // recorderOpened: false,
+  // recorderStarted: false,
   wsConnecting: false,
   wsConnected: false,
   wsSentInitConfig: false,
@@ -217,8 +230,14 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
   try {
     connectionStatus.value = '正在连接...'
 
-    // 创建语音识别实例
-    speechRecognizer = new SpeechRecognition()
+    // 创建语音识别实例 - 根据配置选择录音方式
+    if (RECORDING_MODE === 'mouse') {
+      log.info('使用鼠标麦克风录音模式')
+      speechRecognizer = new MouseSpeechRecognition()
+    } else {
+      log.info('使用电脑麦克风录音模式')
+      speechRecognizer = new SpeechRecognition()
+    }
     
     // 设置详细状态回调
     speechRecognizer.onStatusDetail((detail) => {
@@ -256,7 +275,7 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}) => {
     speechRecognizer.onStateChange((state) => {
       log.info('连接状态变化', { state })
       if (state === 0) {
-        connectionStatus.value = '录音中，松开笔帽停止'
+        connectionStatus.value = '录音中，松开停止'
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'
       } else if (state === 2) {
@@ -329,17 +348,22 @@ onMounted(async () => {
   // 初始调整窗口高度
   adjustWindowHeight()
   
-  // 监听主进程发送的启动语音识别消息
-  removeStartListener = window.electron.ipcRenderer.on('start-speech-recognition', (event, data) => {
-    log.info('收到启动语音识别消息', data)
-    if (data && data.wsUrl) {
-      initSpeechRecognition(data.wsUrl, data.extraParams || {})
-    }
+  // 监听AI键按下事件 - 开始录音
+  window.electron.ipcRenderer.on('start-recording', (event, data) => {
+    log.info('收到开始录音事件', data)
+    // 使用默认 WebSocket 地址
+    const wsUrl = 'ws://chat.danaai.net/asr/speechTranslate'
+    initSpeechRecognition(wsUrl, {
+      mode: '2pass',
+      language: data?.sourceIsoCode || 'ZH',
+      openTranslate: false,  // 语音输入模式不需要翻译
+      ...data
+    })
   })
 
-  // 监听主进程发送的停止语音识别消息
-  removeStopListener = window.electron.ipcRenderer.on('stop-speech-recognition', () => {
-    log.info('收到停止语音识别消息')
+  // 监听AI键松开事件 - 停止录音
+  window.electron.ipcRenderer.on('stop-recording', () => {
+    log.info('收到停止录音事件')
     stopRecording()
   })
   
@@ -356,7 +380,10 @@ onMounted(async () => {
 onUnmounted(() => {
   log.info('组件即将卸载')
   
-  // 移除 IPC 监听器
+  // 移除录音事件监听
+  window.api?.removeRecordingListeners?.()
+  
+  // 移除其他 IPC 监听器
   if (removeStartListener) {
     removeStartListener()
   }

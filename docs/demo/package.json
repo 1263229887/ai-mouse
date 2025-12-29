@@ -1,0 +1,14 @@
+{
+  "name": "bydm_demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bydm_demo.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "koffi": "^2.9.2"
+  }
+}

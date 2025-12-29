@@ -23,14 +23,14 @@ export default defineConfig({
       proxy: {
         // 语音识别服务
         '/ws-asr': {
-          target: 'ws://192.168.80.224:3002',
+          target: 'ws://chat.danaai.net',
           ws: true,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ws-asr/, '/v2/asr')
+          rewrite: (path) => path.replace(/^\/ws-asr/, '/asr/speechTranslate')
         },
         // 翻译服务
         '/ws-translate': {
-          target: 'ws://192.168.80.224:3002',
+          target: 'ws://chat.danaai.net',
           ws: true,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/ws-translate/, '/asr/speechTranslate')

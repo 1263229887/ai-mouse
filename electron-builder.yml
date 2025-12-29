@@ -10,6 +10,10 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
 asarUnpack:
   - resources/**
+extraResources:
+  # AI鼠标SDK DLL文件，生产环境需要
+  - from: docs/bydm.dll
+    to: bydm.dll
 win:
   executableName: ai-smart-stylus
   icon: build/icon.png

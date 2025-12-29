@@ -5,6 +5,7 @@ import { exec } from 'child_process'
 
 import icon from '../renderer/src/assets/icon_av.png?asset'
 import logger from './logger.js'
+import mouseSDK from './mouseSDK.js'
 
 // ==================== 窗口引用 ====================
 // 主窗口引用
@@ -12,15 +13,9 @@ let mainWindow = null
 // 弹窗窗口引用（用于打字机效果和翻译效果）
 let popupWindow = null
 
-// ==================== 蓝牙设备状态 ====================
-// 蓝牙设备名称（Musttrue Pencil）
-const BLUETOOTH_DEVICE_NAME = 'Musttrue Pencil'
-// 蓝牙连接状态
-let bluetoothConnected = false
-// 蓝牙设备引用
-let bluetoothDevice = null
-// 已授权的蓝牙设备列表（用于持久化）
-const grantedBluetoothDevices = new Map()
+// ==================== AI鼠标SDK状态 ====================
+// SDK是否已初始化
+let isMouseSDKInitialized = false
 
 // ==================== 模式状态管理 ====================
 // 当前选中的模式：null-未选择, 'typing'-语音输入, 'translate'-语音翻译
@@ -175,11 +170,6 @@ function createPopupWindow(route = '/typing', options = {}) {
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('allow-insecure-localhost')
 
-// 启用 Web Bluetooth getDevices() API，支持自动重连已授权设备
-app.commandLine.appendSwitch('enable-experimental-web-platform-features')
-app.commandLine.appendSwitch('enable-web-bluetooth-new-permissions-backend')
-// 注意：Web Bluetooth 的 requestDevice() 必须由用户手势触发，无法绕过
-
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -205,83 +195,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // 处理权限检查
-  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    // 对于蓝牙设备，检查是否在已授权列表中
-    if (permission === 'bluetooth') {
-      if (details.deviceId) {
-        const granted = grantedBluetoothDevices.has(details.deviceId)
-        logger.info('Bluetooth', '权限检查', { deviceId: details.deviceId, granted })
-        return granted
-      }
-      return true
-    }
-    // 允许其他权限检查
-    return true
-  })
-
-  // ==================== 蓝牙设备权限持久化 ====================
-  /**
-   * 设置设备权限处理器，用于持久化蓝牙设备授权
-   * 这是实现 getDevices() 返回已授权设备的关键
-   */
-  session.defaultSession.setDevicePermissionHandler((details) => {
-    logger.info('Bluetooth', '设备权限请求', { 
-      deviceType: details.deviceType,
-      deviceId: details.device?.deviceId,
-      deviceName: details.device?.deviceName
-    })
-    
-    if (details.deviceType === 'bluetooth') {
-      // 检查是否是已授权的设备
-      if (details.device?.deviceId && grantedBluetoothDevices.has(details.device.deviceId)) {
-        logger.info('Bluetooth', '设备已授权', { deviceId: details.device.deviceId })
-        return true
-      }
-      // 新设备，需要用户通过 requestDevice 授权
-      return false
-    }
-    return false
-  })
-
-  /**
-   * 保存已授权的蓝牙设备到本地文件
-   */
-  const saveGrantedDevices = () => {
-    try {
-      const devices = Array.from(grantedBluetoothDevices.entries()).map(([id, info]) => ({
-        deviceId: id,
-        ...info
-      }))
-      const configPath = join(app.getPath('userData'), 'bluetooth-devices.json')
-      require('fs').writeFileSync(configPath, JSON.stringify(devices, null, 2))
-      logger.info('Bluetooth', '已保存授权设备', { count: devices.length })
-    } catch (error) {
-      logger.error('Bluetooth', '保存授权设备失败', error.message)
-    }
-  }
-
-  /**
-   * 加载已授权的蓝牙设备
-   */
-  const loadGrantedDevices = () => {
-    try {
-      const configPath = join(app.getPath('userData'), 'bluetooth-devices.json')
-      if (require('fs').existsSync(configPath)) {
-        const devices = JSON.parse(require('fs').readFileSync(configPath, 'utf-8'))
-        devices.forEach(d => {
-          grantedBluetoothDevices.set(d.deviceId, { deviceName: d.deviceName })
-        })
-        logger.info('Bluetooth', '已加载授权设备', { count: devices.length, devices: devices.map(d => d.deviceName) })
-      }
-    } catch (error) {
-      logger.error('Bluetooth', '加载授权设备失败', error.message)
-    }
-  }
-
-  // 加载已保存的授权设备
-  loadGrantedDevices()
-
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -294,6 +207,99 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // ==================== AI鼠标SDK初始化 ====================
+  /**
+   * 初始化AI鼠标SDK
+   */
+  try {
+    logger.info('Main', '正在初始化AI鼠标SDK...')
+    isMouseSDKInitialized = mouseSDK.initSDK(is.dev) // 开发环境启用调试模式
+    if (isMouseSDKInitialized) {
+      logger.info('Main', 'AI鼠标SDK初始化成功')
+      
+      // 注册SDK事件监听器，转发给渲染进程
+      mouseSDK.addEventListener('deviceConnected', (data) => {
+        logger.info('Main', '鼠标设备已连接', data)
+        // 通知所有窗口
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('mouse-device-connected', data)
+          }
+        })
+      })
+      
+      mouseSDK.addEventListener('deviceDisconnected', (data) => {
+        logger.info('Main', '鼠标设备已断开', data)
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('mouse-device-disconnected', data)
+          }
+        })
+      })
+      
+      let audioSendCount = 0  // 音频发送计数器
+      mouseSDK.addEventListener('audioData', (data) => {
+        // 将音频数据转发给弹窗（如果存在）
+        if (popupWindow && !popupWindow.isDestroyed()) {
+          audioSendCount++
+          if (audioSendCount % 50 === 1) {
+            logger.info('Main', '转发音频数据到弹窗', { count: audioSendCount, length: data.length })
+          }
+          popupWindow.webContents.send('mouse-audio-data', {
+            audioBuffer: data.audioBuffer,
+            length: data.length
+          })
+        }
+      })
+      
+      // ==================== AI键事件监听 ====================
+      mouseSDK.addEventListener('aiKeyEvent', (event) => {
+        logger.info('Main', 'AI键事件', event)
+        
+        if (event.type === 'AI_KEY_DOWN') {
+          // AI键按下：创建弹窗并开始录音
+          handleAIKeyDown()
+        } else if (event.type === 'AI_KEY_UP') {
+          // AI键松开：停止录音并处理结果
+          handleAIKeyUp()
+        }
+      })
+    } else {
+      logger.warn('Main', 'AI鼠标SDK初始化失败，将使用旧的录音方式')
+    }
+  } catch (error) {
+    logger.error('Main', 'AI鼠标SDK初始化异常', { error: error.message })
+    isMouseSDKInitialized = false
+  }
+
+  // ==================== AI鼠标SDK IPC处理器 ====================
+  /**
+   * 获取SDK状态
+   */
+  ipcMain.handle('mouse-sdk-get-status', () => {
+    return {
+      isInitialized: isMouseSDKInitialized,
+      isConnected: mouseSDK.getConnectedDeviceId() !== null,
+      deviceId: mouseSDK.getConnectedDeviceId(),
+      deviceCount: mouseSDK.getConnectedDeviceCount()
+    }
+  })
+
+  /**
+   * 启用/禁用鼠标麦克风
+   */
+  ipcMain.handle('mouse-sdk-set-microphone', (event, enable) => {
+    logger.info('Main', enable ? '启用鼠标麦克风' : '禁用鼠标麦克风')
+    return mouseSDK.setMicrophoneEnable(enable)
+  })
+
+  /**
+   * 获取设备信息
+   */
+  ipcMain.handle('mouse-sdk-get-device-info', () => {
+    return mouseSDK.getDeviceInfo()
+  })
 
   // ==================== 渲染进程日志处理 ====================
   /**
@@ -308,75 +314,6 @@ app.whenReady().then(() => {
    */
   ipcMain.handle('get-log-path', () => {
     return logger.getLogPath()
-  })
-
-  // ==================== 蓝牙状态 IPC ====================
-  /**
-   * 获取蓝牙连接状态
-   */
-  ipcMain.handle('get-bluetooth-status', () => {
-    return {
-      connected: bluetoothConnected,
-      deviceName: bluetoothDevice ? BLUETOOTH_DEVICE_NAME : null
-    }
-  })
-
-  /**
-   * 更新蓝牙连接状态（由渲染进程调用）
-   */
-  ipcMain.on('bluetooth-status-changed', (event, { connected, deviceName }) => {
-    logger.info('Bluetooth', '蓝牙状态变化', { connected, deviceName })
-    bluetoothConnected = connected
-    if (!connected) {
-      bluetoothDevice = null
-    }
-    // 通知所有窗口蓝牙状态变化
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('bluetooth-connection-changed', { connected, deviceName })
-    }
-  })
-
-  /**
-   * 触发自动重连（通过模拟用户点击来满足 Chromium 的用户手势要求）
-   * 渲染进程检测到有保存的设备后，请求主进程模拟点击
-   */
-  ipcMain.on('trigger-auto-reconnect', () => {
-    logger.info('Bluetooth', '收到自动重连请求，模拟用户点击...')
-    
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      logger.error('Bluetooth', '主窗口不存在')
-      return
-    }
-    
-    // 模拟鼠标点击事件（在窗口中心位置）
-    const bounds = mainWindow.getBounds()
-    const x = Math.floor(bounds.width / 2)
-    const y = Math.floor(bounds.height / 3) // 点击上部区域（按钮位置）
-    
-    // 发送鼠标按下事件
-    mainWindow.webContents.sendInputEvent({
-      type: 'mouseDown',
-      x: x,
-      y: y,
-      button: 'left',
-      clickCount: 1
-    })
-    
-    // 发送鼠标释放事件
-    mainWindow.webContents.sendInputEvent({
-      type: 'mouseUp',
-      x: x,
-      y: y,
-      button: 'left',
-      clickCount: 1
-    })
-    
-    // 延迟一小段时间后，通知渲染进程执行连接
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('execute-auto-reconnect')
-      }
-    }, 100)
   })
 
   // ==================== 点击卡片触发AI输入 ====================
@@ -500,100 +437,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // ==================== BLE 录音控制 ====================
-  /**
-   * 蓝牙笔长按开始录音
-   */
-  ipcMain.on('ble-recording-start', (event, data) => {
-    logger.info('Main', 'BLE 录音开始', data)
-    
-    if (!currentMode) {
-      logger.warn('Main', '未选择模式，忽略录音请求')
-      return
-    }
-    
-    isRecording = true
-    
-    // 更新语言信息
-    if (data.sourceIsoCode) sourceIsoCode = data.sourceIsoCode
-    if (data.targetIsoCode) targetIsoCode = data.targetIsoCode
-    if (data.sourceLangName) sourceLangName = data.sourceLangName
-    if (data.targetLangName) targetLangName = data.targetLangName
-    
-    // 根据模式创建对应窗口
-    const route = currentMode === 'typing' ? '/typing' : '/translate'
-    createPopupWindow(route)
-    
-    // 通知主窗口状态变化
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-state-changed', { isRecording: true })
-    }
-    
-    // 统一使用翻译接口的 WebSocket 地址
-    const wsUrl = 'ws://chat.danaai.net/asr/speechTranslate'
-    
-    let extraParams
-    if (currentMode === 'translate') {
-      // 翻译模式：根据选择的语言设置参数
-      extraParams = {
-        originalCode: sourceIsoCode,
-        sourceLanguage: sourceIsoCode,
-        targetLanguage: targetIsoCode,
-        openTranslate: true,
-        displayDirection: `${sourceLangName} → ${targetLangName}`
-      }
-    } else {
-      // 语音输入模式：使用中文识别，不开启翻译
-      extraParams = {
-        originalCode: 'ZH',
-        sourceLanguage: 'ZH',
-        targetLanguage: 'EN',
-        openTranslate: false
-      }
-    }
-    
-    logger.info('Main', 'WebSocket 地址', { wsUrl, extraParams })
-    
-    if (popupWindow) {
-      const sendMessage = () => {
-        if (popupWindow && !popupWindow.isDestroyed()) {
-          logger.info('Main', '发送 start-speech-recognition 消息', { wsUrl, extraParams })
-          popupWindow.webContents.send('start-speech-recognition', { wsUrl, extraParams })
-        }
-      }
-      
-      popupWindow.webContents.once('did-finish-load', () => {
-        logger.info('Main', 'popupWindow 加载完成')
-        sendMessage()
-      })
-      
-      setTimeout(() => {
-        if (popupWindow && !popupWindow.isDestroyed() && !popupWindow.webContents.isLoading()) {
-          logger.info('Main', 'popupWindow 延时发送消息')
-          sendMessage()
-        }
-      }, 500)
-    }
-  })
-  
-  /**
-   * 蓝牙笔松开停止录音
-   */
-  ipcMain.on('ble-recording-stop', () => {
-    logger.info('Main', 'BLE 录音停止')
-    isRecording = false
-    
-    // 通知主窗口状态变化
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-state-changed', { isRecording: false })
-    }
-    
-    // 发送停止录音消息给弹窗
-    if (popupWindow && !popupWindow.isDestroyed()) {
-      popupWindow.webContents.send('stop-speech-recognition')
-    }
-  })
-
   // ==================== 打字完成事件处理 ====================
   /**
    * 监听打字机窗口完成事件
@@ -621,63 +464,6 @@ app.whenReady().then(() => {
   })
 
   createWindow()
-
-  // ==================== 蓝牙设备选择处理 ====================
-  /**
-   * 处理蓝牙设备扫描
-   * 自动连接 Musttrue 设备，超时后提示用户
-   */
-  let scanEventCount = 0
-  let scanTimeoutTimer = null
-  
-  // 清理扫描状态
-  const clearScanState = () => {
-    if (scanTimeoutTimer) {
-      clearTimeout(scanTimeoutTimer)
-      scanTimeoutTimer = null
-    }
-  }
-  
-  mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
-    event.preventDefault()
-    scanEventCount++
-    
-    logger.info('Bluetooth', `=== 扫描事件 #${scanEventCount} ===`)
-    logger.info('Bluetooth', `扫描到设备数量: ${devices.length}`)
-    
-    const namedDevices = devices.filter(d => d.deviceName && !d.deviceName.includes('未知或不支持'))
-    logger.info('Bluetooth', `有名称设备: ${namedDevices.map(d => d.deviceName).join(', ') || '无'}`)
-    
-    // 查找 Musttrue 设备
-    const musttrueDevice = devices.find(d => d.deviceName && d.deviceName.includes('Musttrue'))
-    if (musttrueDevice) {
-      logger.info('Bluetooth', `✅ 找到 Musttrue 设备: ${musttrueDevice.deviceName}`)
-      clearScanState()
-      
-      // 保存设备授权（用于自动重连）
-      grantedBluetoothDevices.set(musttrueDevice.deviceId, { deviceName: musttrueDevice.deviceName })
-      saveGrantedDevices()
-      
-      callback(musttrueDevice.deviceId)
-      return
-    }
-    
-    // 设置超时，10秒后提示用户可能被电脑占用
-    if (!scanTimeoutTimer) {
-      scanTimeoutTimer = setTimeout(() => {
-        const { dialog } = require('electron')
-        clearScanState()
-        logger.info('Bluetooth', '扫描超时，未找到设备')
-        dialog.showMessageBox(mainWindow, {
-          type: 'warning',
-          title: '连接失败',
-          message: '未找到蓝牙笔\n\n可能原因：\n• 蓝牙笔已被电脑自动连接\n• 蓝牙笔未开机\n\n请在电脑蓝牙设置中删除或断开该设备后重试',
-          buttons: ['确定']
-        })
-        callback('')
-      }, 10000)
-    }
-  })
 
   // Ctrl+Shift+T: 打开日志文件夹
   globalShortcut.register('Ctrl+Shift+T', () => {
@@ -709,8 +495,6 @@ app.whenReady().then(() => {
     logger.info('Main', '弹窗加载中', debugInfo.popupIsLoading)
     logger.info('Main', '弹窗URL', debugInfo.popupURL)
     logger.info('Main', '日志文件路径', debugInfo.logPath)
-    logger.info('Main', '当前模式', currentMode)
-    logger.info('Main', '是否录音中', isRecording)
     logger.info('Main', '================================')
 
     // 也发送到渲染进程显示，包含日志路径
@@ -742,6 +526,11 @@ app.on('window-all-closed', () => {
 // 应用退出时注销所有快捷键
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  // 关闭AI鼠标SDK
+  if (isMouseSDKInitialized) {
+    logger.info('Main', '关闭AI鼠标SDK')
+    mouseSDK.closeSDK()
+  }
   logger.info('Main', '应用退出，已清理资源')
 })
 
@@ -793,3 +582,75 @@ function handleExecResult(error, stdout, stderr) {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
+
+// ==================== AI键事件处理 ====================
+/**
+ * AI键按下处理（切换模式）
+ * 第一次按下：开始录音
+ * 第二次按下：停止录音
+ */
+function handleAIKeyDown() {
+  // 如果已经在录音，停止录音
+  if (isRecording) {
+    logger.info('Main', 'AI键按下：停止录音（第二次按下）')
+    isRecording = false
+    
+    // 通知弹窗停止录音
+    if (popupWindow && !popupWindow.isDestroyed()) {
+      popupWindow.webContents.send('stop-recording')
+    }
+    
+    // 通知主窗口录音状态
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording-state-changed', { isRecording: false })
+    }
+    return
+  }
+  
+  // 检查是否已选择模式
+  if (!currentMode) {
+    logger.info('Main', 'AI键按下：未选择模式，默认使用语音输入模式')
+    currentMode = 'typing'
+  }
+  
+  logger.info('Main', 'AI键按下：开始录音（第一次按下）', { mode: currentMode })
+  isRecording = true
+  
+  // 根据模式创建对应的弹窗
+  const route = currentMode === 'translate' ? '/translate' : '/typing'
+  createPopupWindow(route)
+  
+  // 等待窗口加载完成后再发送开始录音事件
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.webContents.once('did-finish-load', () => {
+      logger.info('Main', '弹窗加载完成，发送开始录音事件')
+      // 再延迟一小下确保Vue组件已挂载
+      setTimeout(() => {
+        if (popupWindow && !popupWindow.isDestroyed()) {
+          popupWindow.webContents.send('start-recording', {
+            mode: currentMode,
+            sourceIsoCode,
+            targetIsoCode,
+            sourceLangName,
+            targetLangName
+          })
+          logger.info('Main', '已发送start-recording事件')
+        }
+      }, 100)
+    })
+  }
+  
+  // 通知主窗口录音状态
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('recording-state-changed', { isRecording: true })
+  }
+}
+
+/**
+ * AI键松开处理
+ * 切换模式下不处理松开事件
+ */
+function handleAIKeyUp() {
+  // 切换模式：松开不处理任何事件
+  logger.debug('Main', 'AI键松开：切换模式，不处理')
+}
