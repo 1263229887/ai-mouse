@@ -10,6 +10,31 @@
       <span class="status-text">{{ isDeviceConnected ? 'AI鼠标已连接' : '正在连接AI鼠标...' }}</span>
     </div>
 
+    <!-- 设备信息常驻显示（左上角） -->
+    <div class="device-info-panel" v-if="isDeviceConnected">
+      <div class="device-info-title">设备信息</div>
+      <div class="device-info-item">
+        <span class="label">设备唯一ID:</span>
+        <span class="value">{{ deviceInfo.deviceId || '-' }}</span>
+      </div>
+      <div class="device-info-item">
+        <span class="label">设备名:</span>
+        <span class="value">{{ deviceInfo.deviceName || '-' }}</span>
+      </div>
+      <div class="device-info-item">
+        <span class="label">设备厂商ID:</span>
+        <span class="value">{{ deviceInfo.vendorId !== -1 ? deviceInfo.vendorId : '-' }}</span>
+      </div>
+      <div class="device-info-item">
+        <span class="label">设备产品ID:</span>
+        <span class="value">{{ deviceInfo.productId !== -1 ? deviceInfo.productId : '-' }}</span>
+      </div>
+      <div class="device-info-item">
+        <span class="label">当前电量:</span>
+        <span class="value">{{ deviceInfo.battery !== null ? deviceInfo.battery + '%' : '获取中...' }}</span>
+      </div>
+    </div>
+
     <!-- 录音源切换 Tab -->
     <div class="recording-source-tabs" v-if="isDeviceConnected">
       <div 
@@ -42,12 +67,12 @@
         <div class="shortcut" v-if="!isDeviceConnected">请先连接AI鼠标</div>
         <div class="shortcut" v-else-if="currentMode !== 'typing'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? '按AI键停止' : '按AI键启动' }}
+          {{ isRecording ? '松开左前键结束' : '按住左前键录音' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'typing'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按AI键开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按住左前键开始录音' }}
         </div>
       </div>
       <!-- AI翻译卡片 -->
@@ -109,12 +134,12 @@
         <p class="card-desc">语音实时识别,自动翻译并输入</p>
         <div class="shortcut" v-if="currentMode !== 'translate'">单击选择此模式</div>
         <div class="shortcut active" v-else>
-          {{ isRecording ? '按AI键停止' : '按AI键启动' }}
+          {{ isRecording ? '松开左前键结束' : '按住左前键录音' }}
         </div>
         <!-- 状态提示 -->
         <div class="status" v-if="currentMode === 'translate'">
           <span class="status-dot" :class="{ 'recording': isRecording }"></span>
-          {{ isRecording ? '录音中...' : '已就绪，按AI键开始录音' }}
+          {{ isRecording ? '录音中...' : '已就绪，按住左前键开始录音' }}
         </div>
       </div>
     </div>
@@ -147,7 +172,17 @@ const isDeviceConnected = ref(false)
 // 是否正在连接中（用于显示loading效果）
 const isConnecting = ref(true)
 // 录音源模式: 'mouse' = 鼠标硬件录音, 'computer' = 电脑麦克风录音
-const recordingSource = ref('mouse')
+const recordingSource = ref('computer')
+// 是否显示设备信息弹窗
+const showDeviceInfo = ref(false)
+// 设备信息
+const deviceInfo = ref({
+  deviceId: null,
+  deviceName: null,
+  vendorId: -1,
+  productId: -1,
+  battery: null
+})
 
 // ==================== 语言选择 ====================
 // 语言列表
@@ -358,7 +393,7 @@ let pollTimer = null
 /**
  * 设置设备连接状态（延迟1秒显示，提供loading效果）
  */
-const setDeviceConnected = (connected) => {
+const setDeviceConnected = (connected, data = {}) => {
   if (connected) {
     // 设备连接后，延迟1秒再显示连接成功
     console.log('[Home] 设备已连接，延迟1秒显示...')
@@ -366,11 +401,28 @@ const setDeviceConnected = (connected) => {
       isDeviceConnected.value = true
       isConnecting.value = false
       console.log('[Home] 连接状态已更新为已连接')
+      
+      // 更新设备信息
+      if (data.deviceId) {
+        deviceInfo.value.deviceId = data.deviceId
+        deviceInfo.value.deviceName = data.deviceName || null
+        deviceInfo.value.vendorId = data.vendorId !== undefined ? data.vendorId : -1
+        deviceInfo.value.productId = data.productId !== undefined ? data.productId : -1
+        console.log('[Home] 设备信息已更新', deviceInfo.value)
+      }
     }, 1000)
   } else {
     // 断开时立即更新
     isDeviceConnected.value = false
     isConnecting.value = false
+    // 重置设备信息
+    deviceInfo.value = {
+      deviceId: null,
+      deviceName: null,
+      vendorId: -1,
+      productId: -1,
+      battery: null
+    }
   }
 }
 
@@ -433,7 +485,7 @@ onMounted(async () => {
   // 监听设备连接状态
   window.electron.ipcRenderer.on('mouse-connected', (event, data) => {
     console.log('[Home] AI鼠标已连接', data)
-    setDeviceConnected(true)
+    setDeviceConnected(true, data)
   })
   window.electron.ipcRenderer.on('mouse-disconnected', (event, data) => {
     console.log('[Home] AI鼠标已断开', data)
@@ -441,6 +493,14 @@ onMounted(async () => {
     // 断开时重置模式
     currentMode.value = null
     isRecording.value = false
+  })
+  
+  // 监听设备电量信息
+  window.electron.ipcRenderer.on('device-battery', (event, data) => {
+    console.log('[Home] 收到设备电量信息', data)
+    if (data.battery !== undefined) {
+      deviceInfo.value.battery = data.battery
+    }
   })
 
   // 监听键盘事件
@@ -459,6 +519,7 @@ onUnmounted(() => {
   window.electron.ipcRenderer.removeAllListeners('mode-selected')
   window.electron.ipcRenderer.removeAllListeners('mouse-connected')
   window.electron.ipcRenderer.removeAllListeners('mouse-disconnected')
+  window.electron.ipcRenderer.removeAllListeners('device-battery')
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
@@ -600,6 +661,59 @@ onUnmounted(() => {
 
 .connection-status.connected .status-text {
   color: #4ade80;
+}
+
+/* 设备信息常驻显示样式 - 左上角 */
+.device-info-panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(30, 30, 46, 0.95);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  border-radius: 12px;
+  padding: 10px 16px;
+  min-width: 260px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: panel-slide-in 0.3s ease;
+}
+
+@keyframes panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.device-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4ade80;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.device-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.device-info-item .label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.device-info-item .value {
+  color: #64c8ff;
+  font-family: 'Consolas', 'Monaco', monospace;
 }
 
 @keyframes pulse-green {

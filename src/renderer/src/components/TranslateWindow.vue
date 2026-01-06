@@ -227,7 +227,7 @@ const initSpeechRecognition = async (wsUrl, extraParams = {}, useHardwareRecordi
 
     speechRecognizer.onStateChange((state) => {
       if (state === 0) {
-        const modeText = useHardwareRecording ? '硬件录音中，松开语音键停止' : '录音中，再按AI键停止'
+        const modeText = useHardwareRecording ? '硬件录音中，松开语音键停止' : '录音中，松开左前键停止'
         connectionStatus.value = modeText
       } else if (state === 1) {
         connectionStatus.value = '连接已断开'

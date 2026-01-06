@@ -26,6 +26,10 @@ let SDK_setDeviceMicrophoneEnable = null
 let SDK_getConnectionMode = null
 let SDK_getConnectedDeviceCount = null
 let SDK_getDeviceId = null
+let SDK_getDeviceName = null
+let SDK_getDeviceVendorId = null
+let SDK_getDeviceProductId = null
+let SDK_getDeviceBattery = null
 
 // 回调函数引用（防止被GC回收）
 let DeviceConnectedCallback = null
@@ -111,6 +115,12 @@ function initSDK(debug = true) {
     // 获取已连接设备数量和设备ID（用于主动查询）
     SDK_getConnectedDeviceCount = libm.func('int getConnectedDeviceCount(void)')
     SDK_getDeviceId = libm.func('const char* getDeviceId(int index)')
+    
+    // 获取设备信息（1.2.2新增）
+    SDK_getDeviceName = libm.func('const char* getDeviceName(const char* deviceId)')
+    SDK_getDeviceVendorId = libm.func('int getDeviceVendorId(const char* deviceId)')
+    SDK_getDeviceProductId = libm.func('int getDeviceProductId(const char* deviceId)')
+    SDK_getDeviceBattery = libm.func('bool getDeviceBattery(const char* deviceId)')
     
     // 先初始化SDK，再注册回调
     // 顺序重要：与 feature/ai-mouse-test 分支保持一致
@@ -584,6 +594,90 @@ function getVoiceKey() {
   }
 }
 
+/**
+ * 获取设备名称
+ * @param {string} deviceId - 设备ID
+ * @returns {string|null} - 设备名称
+ */
+function getDeviceName(deviceId) {
+  if (!isInitialized || !SDK_getDeviceName) {
+    logger.warn('MouseSDK', '获取设备名称失败：SDK未初始化或函数不可用')
+    return null
+  }
+  
+  try {
+    const name = SDK_getDeviceName(deviceId)
+    logger.info('MouseSDK', '获取设备名称', { deviceId, name })
+    return name
+  } catch (error) {
+    logger.error('MouseSDK', '获取设备名称失败', { error: error.message })
+    return null
+  }
+}
+
+/**
+ * 获取设备厂商ID
+ * @param {string} deviceId - 设备ID
+ * @returns {number} - 厂商ID (-1表示获取失败)
+ */
+function getDeviceVendorId(deviceId) {
+  if (!isInitialized || !SDK_getDeviceVendorId) {
+    logger.warn('MouseSDK', '获取设备厂商ID失败：SDK未初始化或函数不可用')
+    return -1
+  }
+  
+  try {
+    const vendorId = SDK_getDeviceVendorId(deviceId)
+    logger.info('MouseSDK', '获取设备厂商ID', { deviceId, vendorId })
+    return vendorId
+  } catch (error) {
+    logger.error('MouseSDK', '获取设备厂商ID失败', { error: error.message })
+    return -1
+  }
+}
+
+/**
+ * 获取设备产品ID
+ * @param {string} deviceId - 设备ID
+ * @returns {number} - 产品ID (-1表示获取失败)
+ */
+function getDeviceProductId(deviceId) {
+  if (!isInitialized || !SDK_getDeviceProductId) {
+    logger.warn('MouseSDK', '获取设备产品ID失败：SDK未初始化或函数不可用')
+    return -1
+  }
+  
+  try {
+    const productId = SDK_getDeviceProductId(deviceId)
+    logger.info('MouseSDK', '获取设备产品ID', { deviceId, productId })
+    return productId
+  } catch (error) {
+    logger.error('MouseSDK', '获取设备产品ID失败', { error: error.message })
+    return -1
+  }
+}
+
+/**
+ * 请求获取设备电量（结果通过消息回调返回）
+ * @param {string} deviceId - 设备ID
+ * @returns {boolean} - 请求是否发送成功
+ */
+function requestDeviceBattery(deviceId) {
+  if (!isInitialized || !SDK_getDeviceBattery) {
+    logger.warn('MouseSDK', '请求设备电量失败：SDK未初始化或函数不可用')
+    return false
+  }
+  
+  try {
+    const result = SDK_getDeviceBattery(deviceId)
+    logger.info('MouseSDK', '请求设备电量', { deviceId, result })
+    return result
+  } catch (error) {
+    logger.error('MouseSDK', '请求设备电量失败', { error: error.message })
+    return false
+  }
+}
+
 export default {
   initSDK,
   closeSDK,
@@ -598,5 +692,9 @@ export default {
   getConnectionMode,
   setVoiceKey,
   getVoiceKey,
-  closeSDKAsync
+  closeSDKAsync,
+  getDeviceName,
+  getDeviceVendorId,
+  getDeviceProductId,
+  requestDeviceBattery
 }

@@ -31,13 +31,13 @@ let targetLangName = '英文'
 // 音频数据统计（用于采样日志）
 let audioDataCount = 0
 // 录音源模式: 'mouse' = 鼠标硬件录音, 'computer' = 电脑麦克风录音
-let recordingSource = 'mouse'
+let recordingSource = 'computer'
 
 function createWindow() {
   // 创建主窗口
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 750,
+    height: 800,
     show: false,
     autoHideMenuBar: true,
     icon,
@@ -54,8 +54,23 @@ function createWindow() {
     // 解决设备在窗口加载前已连接导致状态不同步的问题
     const status = mouseSDK.getStatus()
     if (status.isConnected) {
-      logger.info('Main', '主窗口就绪，同步已连接的设备状态', { deviceId: status.deviceId })
-      mainWindow.webContents.send('mouse-connected', { deviceId: status.deviceId, connectionMode: 0 })
+      const deviceId = status.deviceId
+      // 获取设备详细信息
+      const deviceName = mouseSDK.getDeviceName(deviceId)
+      const vendorId = mouseSDK.getDeviceVendorId(deviceId)
+      const productId = mouseSDK.getDeviceProductId(deviceId)
+      
+      logger.info('Main', '主窗口就绪，同步已连接的设备状态', { deviceId, deviceName, vendorId, productId })
+      mainWindow.webContents.send('mouse-connected', { 
+        deviceId, 
+        connectionMode: 0,
+        deviceName,
+        vendorId,
+        productId
+      })
+      
+      // 请求获取设备电量
+      mouseSDK.requestDeviceBattery(deviceId)
     }
   })
 
@@ -306,17 +321,25 @@ app.whenReady().then(() => {
   // ==================== 弹窗控制 ====================
   /**
    * 关闭弹窗
+   * 关闭小窗口时取消模式选择，并让大窗口出现在前台
    */
   ipcMain.on('close-popup', () => {
     logger.info('Main', '收到关闭弹窗请求')
     if (popupWindow && !popupWindow.isDestroyed()) {
       popupWindow.destroy()
     }
-    // 重置录音状态
+    // 重置录音状态和模式
     isRecording = false
-    // 通知主窗口
+    currentMode = null  // 取消选中模式
+    // 通知主窗口录音状态变化
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recording-state-changed', { isRecording: false })
+      mainWindow.webContents.send('recording-state-changed', { isRecording: false, completed: true })
+      // 恢复主窗口到前台（不最大化，只是显示并置前）
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
 
@@ -527,11 +550,39 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 应用退出前清理资源（不关闭SDK，不等待设备断开回调）
-app.on('before-quit', () => {
-  // 只注销快捷键，不关闭SDK
+// 标记是否正在退出（避免重复处理）
+let isQuitting = false
+
+// 应用退出前清理资源，等待设备断开回调后再退出
+app.on('before-quit', async (e) => {
+  // 如果已经在退出流程中，直接放行
+  if (isQuitting) {
+    return
+  }
+  
+  // 阻止默认退出，等待SDK关闭
+  e.preventDefault()
+  isQuitting = true
+  
+  // 注销快捷键
   globalShortcut.unregisterAll()
-  logger.info('Main', '应用退出，已注销快捷键')
+  logger.info('Main', '应用退出前，等待SDK关闭和设备断开回调...')
+  
+  try {
+    // 调用closeSDKAsync，等待设备断开回调（超时3秒）
+    const result = await mouseSDK.closeSDKAsync(3000)
+    if (result) {
+      logger.info('Main', '收到设备断开回调，SDK已正常关闭')
+    } else {
+      logger.warn('Main', '等待设备断开回调超时，强制退出')
+    }
+  } catch (error) {
+    logger.error('Main', '关闭SDK时出错', { error: error.message })
+  }
+  
+  logger.info('Main', '应用退出')
+  // 真正退出应用
+  app.quit()
 })
 
 // ==================== 录音控制函数 ====================
@@ -562,9 +613,11 @@ function startRecording() {
   const route = currentMode === 'typing' ? '/typing' : '/translate'
   createPopupWindow(route)
 
-  // 通知主窗口状态变化
+  // 通知主窗口状态变化，并最小化主窗口
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('recording-state-changed', { isRecording: true })
+    // 录音开始时最小化主窗口
+    mainWindow.minimize()
   }
 
   // 统一使用翻译接口的 WebSocket 地址
@@ -713,9 +766,25 @@ function initMouseSDK() {
     logger.info('Main', 'AI鼠标已连接', { deviceId, connectionMode })
     isMouseConnected = true
     
-    // 通知主窗口鼠标已连接
+    // 获取设备详细信息
+    const deviceName = mouseSDK.getDeviceName(deviceId)
+    const vendorId = mouseSDK.getDeviceVendorId(deviceId)
+    const productId = mouseSDK.getDeviceProductId(deviceId)
+    
+    logger.info('Main', '设备详细信息', { deviceId, deviceName, vendorId, productId })
+    
+    // 请求获取设备电量（结果通过消息回调返回）
+    mouseSDK.requestDeviceBattery(deviceId)
+    
+    // 通知主窗口鼠标已连接，包含设备信息
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('mouse-connected', { deviceId, connectionMode })
+      mainWindow.webContents.send('mouse-connected', { 
+        deviceId, 
+        connectionMode,
+        deviceName,
+        vendorId,
+        productId
+      })
     }
   })
   
@@ -762,14 +831,31 @@ function initMouseSDK() {
     
     if (status.isConnected && status.deviceId) {
       // 检测到设备已连接
-      logger.info('Main', 'SDK检测到设备已连接', { deviceId: status.deviceId, checkCount })
+      const deviceId = status.deviceId
+      logger.info('Main', 'SDK检测到设备已连接', { deviceId, checkCount })
       isMouseConnected = true
       clearInterval(checkInterval)
       sdkReadyResolve()
       
+      // 获取设备详细信息
+      const deviceName = mouseSDK.getDeviceName(deviceId)
+      const vendorId = mouseSDK.getDeviceVendorId(deviceId)
+      const productId = mouseSDK.getDeviceProductId(deviceId)
+      
+      logger.info('Main', 'SDK检测设备详细信息', { deviceId, deviceName, vendorId, productId })
+      
+      // 请求获取设备电量
+      mouseSDK.requestDeviceBattery(deviceId)
+      
       // 主动通知渲染进程
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('mouse-connected', { deviceId: status.deviceId, connectionMode: 0 })
+        mainWindow.webContents.send('mouse-connected', { 
+          deviceId, 
+          connectionMode: 0,
+          deviceName,
+          vendorId,
+          productId
+        })
       }
     } else if (checkCount >= maxChecks) {
       // 达到最大检测次数，停止检测
@@ -825,6 +911,19 @@ function handleMouseMessage(deviceId, message) {
   
   if (typeof message === 'object') {
     const { type, index, status, enabled, access } = message
+    
+    // 检测电量消息回调
+    if (type === 'deviceBattery') {
+      logger.info('Main', '设备电量信息', { battery: message.battery })
+      // 通知渲染进程电量信息
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('device-battery', { 
+          deviceId, 
+          battery: message.battery 
+        })
+      }
+      return
+    }
     
     // 检测AI键单击按下事件 (index=96, status=1)
     // AI键改为打开邮箱网址
