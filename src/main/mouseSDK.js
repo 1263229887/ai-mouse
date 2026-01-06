@@ -1,6 +1,7 @@
 /**
  * AI鼠标SDK封装
- * 通过 koffi 调用 bydm.dll 实现设备连接和消息监听
+ * 通过 koffi 调用原生库实现设备连接和消息监听
+ * 支持跨平台: Windows 使用 bydm.dll, macOS 使用 bydm.dylib
  */
 
 import { app } from 'electron'
@@ -50,16 +51,35 @@ let onDeviceMessageCallback = null
 let onDeviceAudioDataCallback = null
 
 /**
- * 获取 DLL 路径
+ * 获取原生库文件名
+ * Windows: bydm.dll
+ * macOS: bydm.dylib
+ * @returns {string} 库文件名
  */
-function getDllPath() {
+function getLibraryFileName() {
+  switch (process.platform) {
+    case 'darwin':
+      return 'bydm.dylib'
+    case 'win32':
+    default:
+      return 'bydm.dll'
+  }
+}
+
+/**
+ * 获取原生库路径
+ * @returns {string} 库文件完整路径
+ */
+function getLibraryPath() {
+  const libraryFileName = getLibraryFileName()
+  
   // 开发环境和生产环境路径不同
   if (app.isPackaged) {
     // 生产环境：从 resources 目录加载
-    return join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'bydm.dll')
+    return join(process.resourcesPath, 'app.asar.unpacked', 'resources', libraryFileName)
   } else {
     // 开发环境：从项目根目录的 resources 加载
-    return join(app.getAppPath(), 'resources', 'bydm.dll')
+    return join(app.getAppPath(), 'resources', libraryFileName)
   }
 }
 
@@ -78,10 +98,10 @@ function initSDK(debug = true) {
     // 动态加载 koffi
     koffi = require('koffi')
     
-    const dllPath = getDllPath()
-    logger.info('MouseSDK', '加载DLL', { dllPath })
+    const libraryPath = getLibraryPath()
+    logger.info('MouseSDK', '加载原生库', { libraryPath, platform: process.platform })
     
-    libm = koffi.load(dllPath)
+    libm = koffi.load(libraryPath)
     
     // 初始化SDK函数
     SDK_sdkInit = libm.func('void sdkInit(bool debug)')

@@ -11,6 +11,11 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - "**/*"
 win:
   executableName: ai-mouse
   icon: build/icon.png
