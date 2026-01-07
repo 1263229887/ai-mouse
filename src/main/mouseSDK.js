@@ -31,6 +31,8 @@ let SDK_getDeviceName = null
 let SDK_getDeviceVendorId = null
 let SDK_getDeviceProductId = null
 let SDK_getDeviceBattery = null
+let SDK_getDeviceSN = null
+let SDK_getDeviceVersion = null
 
 // 回调函数引用（防止被GC回收）
 let DeviceConnectedCallback = null
@@ -141,6 +143,8 @@ function initSDK(debug = true) {
     SDK_getDeviceVendorId = libm.func('int getDeviceVendorId(const char* deviceId)')
     SDK_getDeviceProductId = libm.func('int getDeviceProductId(const char* deviceId)')
     SDK_getDeviceBattery = libm.func('bool getDeviceBattery(const char* deviceId)')
+    SDK_getDeviceSN = libm.func('bool getDeviceSN(const char* deviceId)')
+    SDK_getDeviceVersion = libm.func('bool getDeviceVersion(const char* deviceId)')
     
     // 先初始化SDK，再注册回调
     // 顺序重要：与 feature/ai-mouse-test 分支保持一致
@@ -698,6 +702,48 @@ function requestDeviceBattery(deviceId) {
   }
 }
 
+/**
+ * 请求获取设备序列号（结果通过消息回调返回）
+ * @param {string} deviceId - 设备ID
+ * @returns {boolean} - 请求是否发送成功
+ */
+function requestDeviceSN(deviceId) {
+  if (!isInitialized || !SDK_getDeviceSN) {
+    logger.warn('MouseSDK', '请求设备序列号失败：SDK未初始化或函数不可用')
+    return false
+  }
+  
+  try {
+    const result = SDK_getDeviceSN(deviceId)
+    logger.info('MouseSDK', '请求设备序列号', { deviceId, result })
+    return result
+  } catch (error) {
+    logger.error('MouseSDK', '请求设备序列号失败', { error: error.message })
+    return false
+  }
+}
+
+/**
+ * 请求获取设备版本号（结果通过消息回调返回）
+ * @param {string} deviceId - 设备ID
+ * @returns {boolean} - 请求是否发送成功
+ */
+function requestDeviceVersion(deviceId) {
+  if (!isInitialized || !SDK_getDeviceVersion) {
+    logger.warn('MouseSDK', '请求设备版本号失败：SDK未初始化或函数不可用')
+    return false
+  }
+  
+  try {
+    const result = SDK_getDeviceVersion(deviceId)
+    logger.info('MouseSDK', '请求设备版本号', { deviceId, result })
+    return result
+  } catch (error) {
+    logger.error('MouseSDK', '请求设备版本号失败', { error: error.message })
+    return false
+  }
+}
+
 export default {
   initSDK,
   closeSDK,
@@ -716,5 +762,7 @@ export default {
   getDeviceName,
   getDeviceVendorId,
   getDeviceProductId,
-  requestDeviceBattery
+  requestDeviceBattery,
+  requestDeviceSN,
+  requestDeviceVersion
 }

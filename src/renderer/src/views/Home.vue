@@ -14,8 +14,12 @@
     <div class="device-info-panel" v-if="isDeviceConnected">
       <div class="device-info-title">设备信息</div>
       <div class="device-info-item">
-        <span class="label">设备唯一ID:</span>
-        <span class="value">{{ deviceInfo.deviceId || '-' }}</span>
+        <span class="label">设备序列号:</span>
+        <span class="value">{{ deviceInfo.deviceSN || '获取中...' }}</span>
+      </div>
+      <div class="device-info-item">
+        <span class="label">设备版本号:</span>
+        <span class="value">{{ deviceInfo.deviceVersion || '获取中...' }}</span>
       </div>
       <div class="device-info-item">
         <span class="label">设备名:</span>
@@ -178,6 +182,8 @@ const showDeviceInfo = ref(false)
 // 设备信息
 const deviceInfo = ref({
   deviceId: null,
+  deviceSN: null,
+  deviceVersion: null,
   deviceName: null,
   vendorId: -1,
   productId: -1,
@@ -418,6 +424,8 @@ const setDeviceConnected = (connected, data = {}) => {
     // 重置设备信息
     deviceInfo.value = {
       deviceId: null,
+      deviceSN: null,
+      deviceVersion: null,
       deviceName: null,
       vendorId: -1,
       productId: -1,
@@ -503,6 +511,22 @@ onMounted(async () => {
     }
   })
 
+  // 监听设备序列号信息
+  window.electron.ipcRenderer.on('device-sn', (event, data) => {
+    console.log('[Home] 收到设备序列号信息', data)
+    if (data.sn) {
+      deviceInfo.value.deviceSN = data.sn
+    }
+  })
+
+  // 监听设备版本号信息
+  window.electron.ipcRenderer.on('device-version', (event, data) => {
+    console.log('[Home] 收到设备版本号信息', data)
+    if (data.version) {
+      deviceInfo.value.deviceVersion = data.version
+    }
+  })
+
   // 监听键盘事件
   document.addEventListener('keydown', handleKeydown)
 })
@@ -520,6 +544,8 @@ onUnmounted(() => {
   window.electron.ipcRenderer.removeAllListeners('mouse-connected')
   window.electron.ipcRenderer.removeAllListeners('mouse-disconnected')
   window.electron.ipcRenderer.removeAllListeners('device-battery')
+  window.electron.ipcRenderer.removeAllListeners('device-sn')
+  window.electron.ipcRenderer.removeAllListeners('device-version')
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>

@@ -71,6 +71,10 @@ function createWindow() {
       
       // 请求获取设备电量
       mouseSDK.requestDeviceBattery(deviceId)
+      // 请求获取设备序列号
+      mouseSDK.requestDeviceSN(deviceId)
+      // 请求获取设备版本号
+      mouseSDK.requestDeviceVersion(deviceId)
     }
   })
 
@@ -775,6 +779,10 @@ function initMouseSDK() {
     
     // 请求获取设备电量（结果通过消息回调返回）
     mouseSDK.requestDeviceBattery(deviceId)
+    // 请求获取设备序列号（结果通过消息回调返回）
+    mouseSDK.requestDeviceSN(deviceId)
+    // 请求获取设备版本号（结果通过消息回调返回）
+    mouseSDK.requestDeviceVersion(deviceId)
     
     // 通知主窗口鼠标已连接，包含设备信息
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -846,6 +854,10 @@ function initMouseSDK() {
       
       // 请求获取设备电量
       mouseSDK.requestDeviceBattery(deviceId)
+      // 请求获取设备序列号
+      mouseSDK.requestDeviceSN(deviceId)
+      // 请求获取设备版本号
+      mouseSDK.requestDeviceVersion(deviceId)
       
       // 主动通知渲染进程
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -920,6 +932,32 @@ function handleMouseMessage(deviceId, message) {
         mainWindow.webContents.send('device-battery', { 
           deviceId, 
           battery: message.battery 
+        })
+      }
+      return
+    }
+    
+    // 检测设备序列号消息回调
+    if (type === 'deviceSN') {
+      logger.info('Main', '设备序列号信息', { sn: message.sn })
+      // 通知渲染进程设备序列号信息
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('device-sn', { 
+          deviceId, 
+          sn: message.sn 
+        })
+      }
+      return
+    }
+    
+    // 检测设备版本号消息回调
+    if (type === 'deviceVersion') {
+      logger.info('Main', '设备版本号信息', { version: message.version })
+      // 通知渲染进程设备版本号信息
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('device-version', { 
+          deviceId, 
+          version: message.version 
         })
       }
       return
