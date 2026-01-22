@@ -1,0 +1,4 @@
+provider: generic
+url: http://192.168.80.7/win/
+updaterCacheDirName: ai-mouse-updater
+

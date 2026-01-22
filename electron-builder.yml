@@ -1,0 +1,105 @@
+appId: com.danaid.aimouse
+productName: ai-mouse
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!docs/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+asarUnpack:
+  - resources/**
+  - "**/*.node"
+  - "**/*.dll"
+  - "**/*.dylib"
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - "**/*"
+win:
+  executableName: ai-mouse
+  icon: build/icon.ico
+  publish:
+    provider: generic
+    url: http://192.168.80.7/win/
+    channel: latest
+nsis:
+  artifactName: ${name}-setup.${ext}
+  shortcutName: ai-mouse
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  # 一键安装模式
+  oneClick: false
+  # 全局安装（需要管理员权限，安装到 Program Files）
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  # 固定 GUID，确保更新时能正确识别旧版本
+  guid: com.danaid.aimouse
+  # 安装完成后自动运行应用
+  runAfterFinish: true
+  # 允许提升权限
+  allowElevation: true
+  # 打包提升助手（帮助处理进程关闭）
+  packElevateHelper: true
+mac:
+  # Mac 打包目标: dmg(官网下载) + zip(自动更新)
+  # 打包 arm64 架构（Apple Silicon）
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+  artifactName: ai-mouse.${ext}
+  # 主 entitlements 配置文件 (用于主程序)
+  entitlements: build/entitlements.mac.plist
+  publish:
+    provider: generic
+    url: http://192.168.80.7/mac/
+    channel: latest
+  # 继承 entitlements 配置文件 (用于子进程和 Helper)
+  entitlementsInherit: build/entitlements.mac.plist
+  # 使用 Hardened Runtime (macOS 10.14+)
+  # 禁用以解决 HID 设备访问权限问题，但会影响应用公证
+  # hardenedRuntime: false
+  hardenedRuntime: true
+  # 网关上下文类型
+  gatekeeperAssess: false
+  extendInfo:
+    # 摄像头权限
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    # 麦克风权限 (电脑录音模式必需)
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone for voice input and translation features.
+    # 文档文件夹权限
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    # 蓝牙权限描述 (macOS 10.15+)
+    - NSBluetoothAlwaysUsageDescription: Application requires Bluetooth access to connect with AI Mouse device.
+    - NSBluetoothPeripheralUsageDescription: Application requires Bluetooth access to connect with AI Mouse device.
+    # HID/USB 设备访问权限描述 (macOS 10.15+)
+    - NSHumanInterfaceDeviceUsageDescription: Application requires access to AI Mouse HID device for button events and audio data.
+    # 输入监控权限 (用于监听鼠标按键事件)
+    - NSAppleEventsUsageDescription: Application requires access to send Apple Events for automation.
+  notarize: false
+dmg:
+  artifactName: ai-mouse.${ext}
+linux:
+  target:
+    - AppImage
+    - snap
+    - deb
+  maintainer: electronjs.org
+  category: Utility
+appImage:
+  artifactName: ai-mouse.${ext}
+npmRebuild: false
+# 自动更新配置
+# 测试环境: http://192.168.80.7/win/ 和 http://192.168.80.7/mac/
+# 生产环境: 待定
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
