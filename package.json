@@ -23,6 +23,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "electron-updater": "^6.3.9",
     "element-plus": "^2.13.1",
+    "koffi": "^2.14.1",
     "pinia": "^3.0.4",
     "sass": "^1.97.3",
     "vue-router": "^4.6.4"

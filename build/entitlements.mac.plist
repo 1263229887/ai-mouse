@@ -2,11 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <!-- JIT 编译和动态库加载权限 -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
+    <!-- 禁用库验证，允许加载第三方 dylib (如 bydm.dylib) -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- 蓝牙设备访问权限 (用于蓝牙鼠标连接) -->
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
+    <!-- USB/HID 设备访问权限 (用于 USB 接收器连接) -->
+    <key>com.apple.security.device.usb</key>
+    <true/>
+    <!-- 允许访问 IOKit/HID 设备 (核心权限) -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- 继承权限 - 确保子进程也有相同权限 -->
+    <key>com.apple.security.inherit</key>
+    <true/>
+    <!-- 应用沙箱穿透 - 允许访问系统级资源 -->
+    <key>com.apple.security.temporary-exception.sbpl</key>
+    <string>(allow iokit-open)</string>
   </dict>
 </plist>

@@ -11,7 +11,5 @@ export { useThemeStore } from './modules/theme'
 // 用户状态
 export { useUserStore } from './modules/user'
 
-// 预留：业务模块 Store
-// export { useBusinessAStore } from './modules/businessA'
-// export { useBusinessBStore } from './modules/businessB'
-// export { useBusinessCStore } from './modules/businessC'
+// 设备状态
+export { useDeviceStore } from './modules/device'

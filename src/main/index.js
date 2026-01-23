@@ -5,7 +5,7 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow, windowManager } from './windows'
-import { registerAllHandlers } from './ipc'
+import { registerAllHandlers, shutdownSDK } from './ipc'
 
 // 应用就绪后初始化
 app.whenReady().then(() => {
@@ -40,5 +40,8 @@ app.on('window-all-closed', () => {
 
 // 应用退出前清理
 app.on('before-quit', () => {
+  // 关闭 SDK
+  shutdownSDK()
+  // 关闭所有窗口
   windowManager.closeAll()
 })

@@ -72,5 +72,19 @@ export const IPC_CHANNELS = {
     GET_INFO: 'user:get-info',
     // 用户信息更新
     INFO_UPDATED: 'user:info-updated'
+  },
+
+  // ============ SDK/设备相关 ============
+  DEVICE: {
+    // 设备连接
+    CONNECTED: 'device:connected',
+    // 设备断开
+    DISCONNECTED: 'device:disconnected',
+    // 设备消息（包含设备信息更新）
+    MESSAGE: 'device:message',
+    // 获取厂商ID
+    GET_VENDOR_ID: 'device:get-vendor-id',
+    // 获取设备信息
+    GET_INFO: 'device:get-info'
   }
 }

@@ -1,263 +1,295 @@
 <script setup>
-import { ref } from 'vue'
-import { Document, DataLine, Monitor, Setting, Sunny, Moon } from '@element-plus/icons-vue'
-import { useThemeStore } from '@/stores'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Loading } from '@element-plus/icons-vue'
+import { useDeviceStore, useThemeStore } from '@/stores'
 
-// 主题状态
+// 设备状态
+const deviceStore = useDeviceStore()
+
+// 主题
 const themeStore = useThemeStore()
 
-// 卡片数据
-const cards = ref([
-  {
-    id: 1,
-    title: '文档管理',
-    description: '高效管理您的文档资源，支持多种格式预览和编辑，让文档处理更加便捷。',
-    icon: Document,
-    color: '#409eff'
-  },
-  {
-    id: 2,
-    title: '数据分析',
-    description: '强大的数据可视化能力，帮助您洞察业务趋势，做出更明智的决策。',
-    icon: DataLine,
-    color: '#67c23a'
-  },
-  {
-    id: 3,
-    title: '系统监控',
-    description: '实时监控系统运行状态，及时发现并解决潜在问题，保障系统稳定运行。',
-    icon: Monitor,
-    color: '#e6a23c'
-  },
-  {
-    id: 4,
-    title: '系统设置',
-    description: '灵活配置系统参数，根据您的需求个性化定制，提升使用体验。',
-    icon: Setting,
-    color: '#909399'
+// 厂商ID轮询定时器
+let vendorIdTimer = null
+const vendorIdMaxAttempts = 120 // 最多尝试120次 = 60秒
+const vendorIdAttempts = ref(0)
+
+// 当前设备ID（用于轮询）
+let currentDeviceId = null
+
+/**
+ * 开始轮询获取厂商ID
+ */
+function startVendorIdPolling(deviceId) {
+  // 清除之前的定时器
+  stopVendorIdPolling()
+  vendorIdAttempts.value = 0
+
+  vendorIdTimer = setInterval(async () => {
+    vendorIdAttempts.value++
+    console.log(`[VendorID] 尝试获取厂商ID，第 ${vendorIdAttempts.value} 次`)
+
+    try {
+      const vendorId = await window.api?.device?.getVendorId(deviceId)
+      console.log(`[VendorID] 获取结果:`, vendorId)
+
+      if (vendorId) {
+        deviceStore.setVendorId(vendorId)
+        console.log(`[VendorID] 成功获取厂商ID: ${vendorId}`)
+        stopVendorIdPolling()
+        return
+      }
+    } catch (error) {
+      console.error(`[VendorID] 获取失败:`, error)
+    }
+
+    // 达到最大尝试次数，停止轮询
+    if (vendorIdAttempts.value >= vendorIdMaxAttempts) {
+      console.log(`[VendorID] 达到最大尝试次数，停止轮询`)
+      stopVendorIdPolling()
+    }
+  }, 500)
+}
+
+/**
+ * 停止轮询获取厂商ID
+ */
+function stopVendorIdPolling() {
+  if (vendorIdTimer) {
+    clearInterval(vendorIdTimer)
+    vendorIdTimer = null
   }
-])
+}
+
+/**
+ * 初始化设备监听
+ */
+function initDeviceListeners() {
+  // 监听设备连接
+  window.api?.device?.onDeviceConnected((data) => {
+    console.log('Device connected:', data)
+    currentDeviceId = data.deviceId
+    deviceStore.updateDeviceInfo({
+      deviceId: data.deviceId,
+      connectionMode: data.connectionMode
+    })
+    // 注意：不在这里开始轮询，等待 deviceActive 确认设备已激活后再轮询
+  })
+
+  // 监听设备断开
+  window.api?.device?.onDeviceDisconnected((data) => {
+    console.log('Device disconnected:', data)
+    stopVendorIdPolling()
+    currentDeviceId = null
+    deviceStore.resetDevice()
+  })
+
+  // 监听设备消息（包含设备信息更新）
+  window.api?.device?.onDeviceMessage((data) => {
+    console.log('Device message:', data)
+    const { data: messageData } = data
+
+    // 根据消息类型更新设备信息
+    if (messageData && messageData.type) {
+      switch (messageData.type) {
+        case 'deviceSN':
+          deviceStore.setSerialNumber(messageData.sn || '')
+          break
+        case 'deviceVersion':
+          deviceStore.setVersion(messageData.version || '')
+          break
+        case 'deviceActive':
+          deviceStore.setOnlineStatus(messageData.active === 1)
+          // 设备已激活，开始轮询获取厂商ID
+          if (messageData.active === 1 && currentDeviceId && !deviceStore.vendorId) {
+            startVendorIdPolling(currentDeviceId)
+          }
+          break
+        default:
+          // 其他消息类型（如 deviceKeyEvent）暂不处理
+          break
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  initDeviceListeners()
+})
+
+onUnmounted(() => {
+  // 停止轮询
+  stopVendorIdPolling()
+  // 移除监听器
+  window.api?.device?.removeAllListeners()
+})
 </script>
 
 <template>
   <div class="home-container">
     <!-- 主题切换按钮 -->
-    <div class="theme-toggle">
-      <el-button circle size="large" @click="themeStore.toggleTheme()">
-        <el-icon :size="20">
-          <Moon v-if="themeStore.theme === 'light'" />
-          <Sunny v-else />
-        </el-icon>
-      </el-button>
-    </div>
+    <button class="theme-toggle" @click="themeStore.toggleTheme">
+      {{ themeStore.isDark() ? '☀️' : '🌙' }}
+    </button>
 
-    <!-- 内容区域 -->
     <div class="content-wrapper">
-      <!-- 头部区域 -->
-      <header class="home-header">
-        <h1 class="main-title">AI Mouse</h1>
-        <p class="sub-title">智能桌面助手，让您的工作更高效</p>
-      </header>
+      <!-- 鼠标图片 -->
+      <div class="mouse-image">
+        <SvgIcon name="mouse" size="100%" themed />
+      </div>
 
-      <!-- 卡片区域 -->
-      <main class="home-content">
-        <div class="cards-grid">
-          <el-card v-for="card in cards" :key="card.id" class="feature-card" shadow="hover">
-            <div
-              class="card-icon"
-              :style="{ backgroundColor: card.color + '15', color: card.color }"
-            >
-              <el-icon :size="24">
-                <component :is="card.icon" />
-              </el-icon>
-            </div>
-            <h3 class="card-title">{{ card.title }}</h3>
-            <p class="card-description">{{ card.description }}</p>
-          </el-card>
-        </div>
-      </main>
+      <!-- 标题 -->
+      <h1 class="title">AI Mouse</h1>
 
-      <!-- 底部信息 -->
-      <footer class="home-footer">
-        <!-- SVG 图标展示 -->
-        <div class="svg-icons-demo">
-          <SvgIcon name="success" :size="20" color="var(--color-success)" />
-          <SvgIcon name="warning" :size="20" color="var(--color-warning)" />
-          <SvgIcon name="star" :size="20" color="var(--color-primary)" />
-          <SvgIcon name="menu" :size="20" themed />
+      <!-- 设备信息 -->
+      <div v-if="deviceStore.isOnline" class="device-info">
+        <div class="info-item">
+          <span class="label">设备序列号:</span>
+          <span class="value">{{ deviceStore.serialNumber || '--' }}</span>
         </div>
-        <span class="version-info">Version 1.0.0</span>
-      </footer>
+        <div class="info-item">
+          <span class="label">厂商ID:</span>
+          <span class="value">{{ deviceStore.vendorId || '--' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">设备版本号:</span>
+          <span class="value">{{ deviceStore.version || '--' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">在线状态:</span>
+          <span class="value online">在线</span>
+        </div>
+      </div>
+
+      <!-- 离线状态 - Loading -->
+      <div v-else class="device-loading">
+        <el-icon class="loading-icon" :size="32">
+          <Loading />
+        </el-icon>
+        <span class="loading-text">检测鼠标设备连接中...</span>
+      </div>
     </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-@use '@/styles/variables' as *;
-@use '@/styles/mixins' as *;
-
-// 容器 - 占满视口，不允许滚动
 .home-container {
   width: 100%;
   height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: var(--gradient-bg);
+  background: var(--bg-color-page);
   overflow: hidden;
-  position: relative;
   transition: background 0.3s ease;
+  position: relative;
 }
 
-// 主题切换按钮
 .theme-toggle {
   position: absolute;
   top: clamp(1rem, 2vh, 1.5rem);
   right: clamp(1rem, 2vw, 1.5rem);
-  z-index: 100;
+  width: clamp(2rem, 4vw, 2.5rem);
+  height: clamp(2rem, 4vw, 2.5rem);
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-color-hover);
+  cursor: pointer;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.3s ease,
+    transform 0.2s ease;
 
-  :deep(.el-button) {
-    background: var(--card-bg);
-    border-color: var(--border-color);
+  &:hover {
+    background: var(--bg-color-active);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.content-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.mouse-image {
+  width: clamp(120px, 20vw, 200px);
+  height: clamp(120px, 20vw, 200px);
+  margin-bottom: clamp(1rem, 3vh, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: clamp(1.5rem, 4vh, 3rem);
+  transition: color 0.3s ease;
+}
+
+.device-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.5rem, 1.5vh, 1rem);
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1vw, 1rem);
+  font-size: clamp(0.8rem, 1.5vw, 1rem);
+
+  .label {
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+  }
+
+  .value {
     color: var(--text-primary);
-    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    transition: color 0.3s ease;
 
-    &:hover {
-      background: var(--bg-color-hover);
-      border-color: var(--color-primary);
-      color: var(--color-primary);
+    &.online {
+      color: var(--color-success);
     }
   }
 }
 
-// 内容区域
-.content-wrapper {
+.device-loading {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  width: 90%;
-  height: 90%;
-}
+  gap: clamp(0.75rem, 2vh, 1.5rem);
 
-// 头部区域
-.home-header {
-  flex: 0 0 auto;
-  text-align: center;
-  margin-bottom: clamp(1rem, 3vh, 2rem);
-}
-
-.main-title {
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: clamp(0.25rem, 1vh, 0.5rem);
-  font-size: clamp(1.5rem, 4vw, 2rem);
-  transition: color 0.3s ease;
-}
-
-.sub-title {
-  color: var(--text-secondary);
-  font-size: clamp(0.8rem, 1.8vw, 1rem);
-  transition: color 0.3s ease;
-}
-
-// 主内容区域
-.home-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 0;
-}
-
-// 卡片网格 - 固定 2x2 布局
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: clamp(0.75rem, 2vw, 1.25rem);
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-}
-
-// 特性卡片
-.feature-card {
-  border-radius: $border-radius-lg;
-  transition:
-    transform $transition-base,
-    box-shadow $transition-base,
-    background 0.3s ease;
-  height: 100%;
-
-  :deep(.el-card__body) {
-    padding: clamp(0.75rem, 2vw, 1.25rem);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    height: 100%;
+  .loading-icon {
+    color: var(--color-primary);
+    animation: rotate 1.5s linear infinite;
   }
 
-  &:hover {
-    transform: translateY(-2px);
+  .loading-text {
+    color: var(--text-secondary);
+    font-size: clamp(0.85rem, 1.5vw, 1rem);
+    transition: color 0.3s ease;
   }
 }
 
-// 卡片图标
-.card-icon {
-  width: clamp(36px, 5vw, 48px);
-  height: clamp(36px, 5vw, 48px);
-  border-radius: $border-radius-md;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: clamp(0.5rem, 1vh, 0.75rem);
-  transition: transform $transition-base;
-
-  .feature-card:hover & {
-    transform: scale(1.1);
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
   }
-}
-
-// 卡片标题
-.card-title {
-  font-size: clamp(0.875rem, 1.8vw, 1.1rem);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: clamp(0.25rem, 0.5vh, 0.5rem);
-  transition: color 0.3s ease;
-}
-
-// 卡片描述
-.card-description {
-  font-size: clamp(0.7rem, 1.4vw, 0.8rem);
-  color: var(--text-secondary);
-  line-height: 1.5;
-  transition: color 0.3s ease;
-  @include text-ellipsis(2);
-}
-
-// 底部区域
-.home-footer {
-  flex: 0 0 auto;
-  text-align: center;
-  margin-top: clamp(1rem, 2vh, 1.5rem);
-}
-
-// SVG 图标展示
-.svg-icons-demo {
-  display: flex;
-  justify-content: center;
-  gap: clamp(0.75rem, 1.5vw, 1rem);
-  margin-bottom: clamp(0.5rem, 1vh, 0.75rem);
-}
-
-.version-info {
-  font-size: clamp(0.7rem, 1.2vw, 0.8rem);
-  color: var(--text-placeholder);
-  transition: color 0.3s ease;
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

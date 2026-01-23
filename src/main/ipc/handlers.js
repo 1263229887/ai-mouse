@@ -12,6 +12,7 @@ import {
   createBusinessCWindow,
   MiniWindowType
 } from '../windows'
+import { initSDK, closeSDK, getDeviceVendorId, addEventListener } from '../services'
 
 /**
  * 注册窗口相关 IPC
@@ -100,12 +101,48 @@ function registerThemeHandlers() {
 }
 
 /**
+ * 注册设备/SDK 相关 IPC
+ */
+function registerDeviceHandlers() {
+  // 初始化 SDK
+  initSDK(true)
+
+  // 监听设备连接事件，转发给渲染进程
+  addEventListener('deviceConnected', (data) => {
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.CONNECTED, data)
+  })
+
+  // 监听设备断开事件
+  addEventListener('deviceDisconnected', (data) => {
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.DISCONNECTED, data)
+  })
+
+  // 监听设备消息（包含设备信息更新）
+  addEventListener('deviceMessage', (data) => {
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.MESSAGE, data)
+  })
+
+  // 获取厂商ID（同步方法）
+  ipcMain.handle(IPC_CHANNELS.DEVICE.GET_VENDOR_ID, (event, deviceId) => {
+    return getDeviceVendorId(deviceId)
+  })
+}
+
+/**
+ * 关闭 SDK
+ */
+export function shutdownSDK() {
+  closeSDK()
+}
+
+/**
  * 注册所有 IPC 处理器
  */
 export function registerAllHandlers() {
   registerWindowHandlers()
   registerAppHandlers()
   registerThemeHandlers()
+  registerDeviceHandlers()
 
   // 保留原有的 ping 测试
   ipcMain.on('ping', () => console.log('pong'))
