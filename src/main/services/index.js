@@ -12,5 +12,8 @@ export {
   getDeviceVendorId,
   addEventListener,
   removeEventListener,
-  isSDKInitialized
+  isSDKInitialized,
+  getCurrentDeviceState,
+  updateDeviceVendorId
 } from './sdk'
+export { generateOpenId, validateEncryptData } from './crypto'

@@ -36,6 +36,9 @@ const listeners = {
   deviceMessage: []
 }
 
+// 当前已连接设备状态缓存（用于页面刷新后恢复）
+const connectedDevices = new Map()
+
 /**
  * 获取库文件路径
  */
@@ -53,9 +56,11 @@ function getLibraryPath() {
   }
 
   if (isDev) {
+    // 开发环境: 项目根目录/resources/sdk/
     return join(app.getAppPath(), 'resources', 'sdk', libName)
   } else {
-    return join(process.resourcesPath, 'sdk', libName)
+    // 打包后: extraResources 复制到 resources/resources/sdk/
+    return join(process.resourcesPath, 'resources', 'sdk', libName)
   }
 }
 
@@ -140,6 +145,16 @@ function registerCallbacks() {
   const onDeviceConnected = (deviceId, connectionMode) => {
     console.log('[SDK] Device connected:', deviceId, 'mode:', connectionMode)
 
+    // 缓存设备状态
+    connectedDevices.set(deviceId, {
+      deviceId,
+      connectionMode,
+      isOnline: false,
+      serialNumber: '',
+      version: '',
+      vendorId: null
+    })
+
     // 请求设备信息
     SDK_getDeviceActive(deviceId)
     SDK_getDeviceSN(deviceId)
@@ -152,6 +167,8 @@ function registerCallbacks() {
   // 设备断开回调
   const onDeviceDisconnected = (deviceId, connectionMode) => {
     console.log('[SDK] Device disconnected:', deviceId, 'mode:', connectionMode)
+    // 移除设备缓存
+    connectedDevices.delete(deviceId)
     emitEvent('deviceDisconnected', { deviceId, connectionMode })
   }
 
@@ -165,6 +182,22 @@ function registerCallbacks() {
       messageData = JSON.parse(data)
     } catch {
       messageData = { raw: data }
+    }
+
+    // 更新设备缓存
+    const device = connectedDevices.get(deviceId)
+    if (device && messageData) {
+      switch (messageData.type) {
+        case 'deviceActive':
+          device.isOnline = messageData.active === 1
+          break
+        case 'deviceSN':
+          device.serialNumber = messageData.sn || ''
+          break
+        case 'deviceVersion':
+          device.version = messageData.version || ''
+          break
+      }
     }
 
     emitEvent('deviceMessage', { deviceId, data: messageData })
@@ -308,4 +341,39 @@ function emitEvent(event, data) {
  */
 export function isSDKInitialized() {
   return isInitialized
+}
+
+/**
+ * 获取当前已连接的设备状态
+ * 用于页面刷新后恢复设备状态
+ * @returns {Object|null} 当前连接的设备信息
+ */
+export function getCurrentDeviceState() {
+  if (!isInitialized) return null
+
+  // 获取第一个连接的设备（通常只有一个）
+  const devices = Array.from(connectedDevices.values())
+  if (devices.length === 0) return null
+
+  const device = devices[0]
+  return {
+    deviceId: device.deviceId,
+    connectionMode: device.connectionMode,
+    isOnline: device.isOnline,
+    serialNumber: device.serialNumber,
+    version: device.version,
+    vendorId: device.vendorId
+  }
+}
+
+/**
+ * 更新设备缓存中的厂商ID
+ * @param {string} deviceId
+ * @param {number} vendorId
+ */
+export function updateDeviceVendorId(deviceId, vendorId) {
+  const device = connectedDevices.get(deviceId)
+  if (device) {
+    device.vendorId = vendorId
+  }
 }

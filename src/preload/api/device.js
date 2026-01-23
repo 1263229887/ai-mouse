@@ -13,6 +13,13 @@ export const deviceApi = {
   getVendorId: (deviceId) => ipcRenderer.invoke('device:get-vendor-id', deviceId),
 
   /**
+   * 获取当前设备状态
+   * 用于页面刷新后恢复设备状态
+   * @returns {Promise<Object|null>}
+   */
+  getCurrentState: () => ipcRenderer.invoke('device:get-current-state'),
+
+  /**
    * 监听设备连接
    * @param {Function} callback - 回调函数
    */

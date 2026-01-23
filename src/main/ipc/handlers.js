@@ -12,7 +12,15 @@ import {
   createBusinessCWindow,
   MiniWindowType
 } from '../windows'
-import { initSDK, closeSDK, getDeviceVendorId, addEventListener } from '../services'
+import {
+  initSDK,
+  closeSDK,
+  getDeviceVendorId,
+  addEventListener,
+  generateOpenId,
+  getCurrentDeviceState,
+  updateDeviceVendorId
+} from '../services'
 
 /**
  * 注册窗口相关 IPC
@@ -124,7 +132,27 @@ function registerDeviceHandlers() {
 
   // 获取厂商ID（同步方法）
   ipcMain.handle(IPC_CHANNELS.DEVICE.GET_VENDOR_ID, (event, deviceId) => {
-    return getDeviceVendorId(deviceId)
+    const vendorId = getDeviceVendorId(deviceId)
+    // 更新设备缓存
+    if (vendorId) {
+      updateDeviceVendorId(deviceId, vendorId)
+    }
+    return vendorId
+  })
+
+  // 获取当前设备状态（用于刷新后恢复）
+  ipcMain.handle(IPC_CHANNELS.DEVICE.GET_CURRENT_STATE, () => {
+    return getCurrentDeviceState()
+  })
+}
+
+/**
+ * 注册加密相关 IPC
+ */
+function registerCryptoHandlers() {
+  // 生成加密的 open_id
+  ipcMain.handle(IPC_CHANNELS.CRYPTO.GENERATE_OPEN_ID, (event, data) => {
+    return generateOpenId(data)
   })
 }
 
@@ -143,6 +171,7 @@ export function registerAllHandlers() {
   registerAppHandlers()
   registerThemeHandlers()
   registerDeviceHandlers()
+  registerCryptoHandlers()
 
   // 保留原有的 ping 测试
   ipcMain.on('ping', () => console.log('pong'))

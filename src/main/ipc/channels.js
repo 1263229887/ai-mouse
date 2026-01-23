@@ -85,6 +85,14 @@ export const IPC_CHANNELS = {
     // 获取厂商ID
     GET_VENDOR_ID: 'device:get-vendor-id',
     // 获取设备信息
-    GET_INFO: 'device:get-info'
+    GET_INFO: 'device:get-info',
+    // 获取当前设备状态（用于刷新后恢复）
+    GET_CURRENT_STATE: 'device:get-current-state'
+  },
+
+  // ============ 加密相关 ============
+  CRYPTO: {
+    // 生成加密的 open_id
+    GENERATE_OPEN_ID: 'crypto:generate-open-id'
   }
 }

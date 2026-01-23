@@ -13,6 +13,23 @@ export default defineConfig({
         '@': resolve('src/renderer/src')
       }
     },
+    server: {
+      // 代理配置
+      proxy: {
+        // 授权接口代理到测试环境
+        '/auth-api': {
+          target: 'http://192.168.80.8',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/auth-api/, '')
+        },
+        // 通用业务接口代理
+        '/api': {
+          target: 'http://192.168.80.8',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, '')
+        }
+      }
+    },
     plugins: [
       vue(),
       createSvgIconsPlugin({

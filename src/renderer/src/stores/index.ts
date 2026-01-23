@@ -13,3 +13,6 @@ export { useUserStore } from './modules/user'
 
 // 设备状态
 export { useDeviceStore } from './modules/device'
+
+// 授权状态
+export { useAuthStore } from './modules/auth'

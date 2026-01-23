@@ -1,13 +1,17 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
-import { useDeviceStore, useThemeStore } from '@/stores'
+import { useDeviceStore, useThemeStore, useAuthStore } from '@/stores'
+import { activateDevice } from '@/api'
 
 // 设备状态
 const deviceStore = useDeviceStore()
 
 // 主题
 const themeStore = useThemeStore()
+
+// 授权状态
+const authStore = useAuthStore()
 
 // 厂商ID轮询定时器
 let vendorIdTimer = null
@@ -58,6 +62,101 @@ function stopVendorIdPolling() {
   if (vendorIdTimer) {
     clearInterval(vendorIdTimer)
     vendorIdTimer = null
+  }
+}
+
+/**
+ * 检查并执行设备授权
+ * 当设备信息完整时自动调用授权接口
+ */
+async function checkAndActivateDevice() {
+  const { serialNumber, vendorId, version, isOnline } = deviceStore
+
+  // 检查设备信息是否完整
+  if (!isOnline || !serialNumber || !vendorId || !version) {
+    console.log('[Auth] 设备信息不完整，等待...')
+    return
+  }
+
+  // 已经授权过或正在授权中，跳过
+  if (authStore.isAuthorized || authStore.isPending) {
+    console.log('[Auth] 已授权或正在授权中')
+    return
+  }
+
+  console.log('[Auth] 设备信息完整，开始授权...')
+  authStore.setAuthStatus('pending')
+
+  try {
+    const result = await activateDevice({
+      tenantId: vendorId,
+      deviceId: serialNumber,
+      deviceType: 'smart_mouse',
+      deviceModel: version
+    })
+
+    console.log('[Auth] 授权成功:', result)
+    authStore.setAuth(result)
+  } catch (error) {
+    console.error('[Auth] 授权失败:', error)
+    authStore.setAuthStatus('failed', error.message)
+  }
+}
+
+// 监听设备信息变化，自动触发授权
+watch(
+  () => ({
+    sn: deviceStore.serialNumber,
+    vid: deviceStore.vendorId,
+    ver: deviceStore.version,
+    online: deviceStore.isOnline
+  }),
+  (newVal) => {
+    if (newVal.sn && newVal.vid && newVal.ver && newVal.online) {
+      checkAndActivateDevice()
+    }
+  },
+  { deep: true }
+)
+
+/**
+ * 初始化设备状态
+ * 页面加载时主动查询当前设备状态，用于刷新后恢复
+ */
+async function initDeviceState() {
+  try {
+    const state = await window.api?.device?.getCurrentState()
+    console.log('[Home] 当前设备状态:', state)
+
+    if (state) {
+      currentDeviceId = state.deviceId
+
+      // 恢复设备信息
+      deviceStore.updateDeviceInfo({
+        deviceId: state.deviceId,
+        connectionMode: state.connectionMode
+      })
+
+      if (state.serialNumber) {
+        deviceStore.setSerialNumber(state.serialNumber)
+      }
+      if (state.version) {
+        deviceStore.setVersion(state.version)
+      }
+      if (state.vendorId) {
+        deviceStore.setVendorId(state.vendorId)
+      }
+      if (state.isOnline) {
+        deviceStore.setOnlineStatus(true)
+      }
+
+      // 如果设备已连接但缺少厂商ID，开始轮询
+      if (state.isOnline && !state.vendorId && currentDeviceId) {
+        startVendorIdPolling(currentDeviceId)
+      }
+    }
+  } catch (error) {
+    console.error('[Home] 获取设备状态失败:', error)
   }
 }
 
@@ -114,6 +213,9 @@ function initDeviceListeners() {
 }
 
 onMounted(() => {
+  // 先查询当前设备状态（用于刷新后恢复）
+  initDeviceState()
+  // 注册设备事件监听
   initDeviceListeners()
 })
 
@@ -158,6 +260,27 @@ onUnmounted(() => {
         <div class="info-item">
           <span class="label">在线状态:</span>
           <span class="value online">在线</span>
+        </div>
+        <div class="info-item">
+          <span class="label">授权状态:</span>
+          <span
+            class="value"
+            :class="{
+              online: authStore.authStatus === 'success',
+              pending: authStore.authStatus === 'pending',
+              error: authStore.authStatus === 'failed'
+            }"
+          >
+            {{
+              authStore.authStatus === 'success'
+                ? '已授权'
+                : authStore.authStatus === 'pending'
+                  ? '授权中...'
+                  : authStore.authStatus === 'failed'
+                    ? '授权失败'
+                    : '待授权'
+            }}
+          </span>
         </div>
       </div>
 
@@ -262,6 +385,14 @@ onUnmounted(() => {
 
     &.online {
       color: var(--color-success);
+    }
+
+    &.pending {
+      color: var(--color-warning);
+    }
+
+    &.error {
+      color: var(--color-danger);
     }
   }
 }

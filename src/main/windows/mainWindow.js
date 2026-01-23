@@ -55,6 +55,25 @@ export function createMainWindow() {
     mainWindow.show()
   })
 
+  // 注册开发者快捷键
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    // DevTools: Ctrl+Shift+I / Cmd+Option+I
+    if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+    // 刷新: Ctrl+R / Cmd+R 或 F5
+    if (((input.control || input.meta) && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+      mainWindow.webContents.reload()
+      event.preventDefault()
+    }
+    // 强制刷新: Ctrl+Shift+R / Cmd+Shift+R
+    if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'r') {
+      mainWindow.webContents.reloadIgnoringCache()
+      event.preventDefault()
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
