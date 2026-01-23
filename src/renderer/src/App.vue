@@ -1,20 +1,11 @@
 <script setup>
-// todo 添加一个版本信息的组件
+// App.vue - 路由出口
 </script>
 
 <template>
-  <div class="electron-vite">electron-vite</div>
+  <router-view />
 </template>
 
-<style>
-.electron-vite {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  font-size: 24px;
-  color: #333;
-}
+<style lang="scss">
+// 全局样式已在 main.js 中导入
 </style>

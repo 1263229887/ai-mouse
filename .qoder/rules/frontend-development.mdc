@@ -1,0 +1,87 @@
+---
+trigger: always_on
+alwaysApply: true
+---
+
+# 前端开发规范
+
+## 1. 响应式布局规则
+
+### 核心原则
+- 禁止页面出现滚动条（除非内容区域明确需要滚动）
+- 使用 Flex/Grid 弹性布局
+- 使用百分比或视口单位定义容器尺寸
+
+### clamp() 使用规范
+- 字体大小：`clamp(最小rem, 理想vw, 最大rem)`
+- 间距：`clamp(最小rem, 理想vw, 最大rem)`
+- 禁止使用固定像素值（边框、图标尺寸除外）
+- 禁止使用媒体查询断点
+
+## 2. 主题换肤规则
+
+### 颜色必须使用 CSS 变量
+```scss
+// ✅ 正确
+color: var(--text-primary);
+background: var(--bg-color);
+border-color: var(--border-color);
+
+// ❌ 错误
+color: #333333;
+background: #ffffff;
+```
+
+### 可用的 CSS 变量
+- 文字：`--text-primary`, `--text-regular`, `--text-secondary`, `--text-placeholder`
+- 背景：`--bg-color`, `--bg-color-page`, `--gradient-bg`, `--card-bg`
+- 颜色：`--color-primary`, `--color-success`, `--color-warning`, `--color-danger`
+- 边框：`--border-color`, `--border-color-light`
+
+### 过渡动画
+颜色和背景变化必须添加过渡：
+```scss
+transition: color 0.3s ease, background 0.3s ease;
+```
+
+## 3. SVG 图标规则
+
+### 使用 SvgIcon 组件
+```vue
+<!-- 基础用法 -->
+<SvgIcon name="icon-name" />
+
+<!-- 主题色（推荐） -->
+<SvgIcon name="icon-name" color="var(--color-primary)" />
+
+<!-- 跟随主题自动切换 -->
+<SvgIcon name="icon-name" themed />
+```
+
+### 添加新图标
+1. SVG 文件放入 `src/renderer/src/assets/icons/`
+2. SVG 必须使用 `fill="currentColor"`
+
+## 4. 模块化规则
+
+### Store 导入规范
+```js
+// ✅ 正确：从统一入口导入
+import { useThemeStore, useUserStore, useAppStore } from '@/stores'
+
+// ❌ 错误：直接从模块导入
+import { useThemeStore } from '@/stores/modules/theme'
+```
+
+### 模块拆分原则
+- 每个模块单一职责
+- 统一通过 `index.js` 导出
+- 新增模块后在 `index.js` 中注册导出
+
+## 5. 禁止事项
+
+- ❌ 页面出现滚动条
+- ❌ 使用固定像素值定义尺寸
+- ❌ 使用硬编码颜色值
+- ❌ 使用媒体查询断点
+- ❌ 忘记添加颜色过渡动画
