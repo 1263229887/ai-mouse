@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// 本地存储 key
+const AUTH_STORAGE_KEY = 'app-auth'
+
 /**
  * 授权状态 Store
  * 管理设备授权状态和 Token
@@ -21,27 +24,75 @@ export const useAuthStore = defineStore('auth', () => {
   // 错误信息
   const errorMessage = ref('')
 
-  // 是否已授权
-  const isAuthorized = computed(() => !!accessToken.value)
+  // 是否已授权（有token或者授权状态为成功）
+  const isAuthorized = computed(() => !!accessToken.value || authStatus.value === 'success')
 
   // 是否正在授权中
   const isPending = computed(() => authStatus.value === 'pending')
 
   /**
+   * 从本地存储恢复授权信息
+   */
+  function restoreAuth() {
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY)
+      if (stored) {
+        const data = JSON.parse(stored)
+        if (data.accessToken) accessToken.value = data.accessToken
+        if (data.refreshToken) refreshToken.value = data.refreshToken
+        if (data.userInfo) userInfo.value = data.userInfo
+        if (data.accessToken) {
+          authStatus.value = 'success'
+        }
+      }
+    } catch (error) {
+      console.error('[Auth] 恢复授权信息失败:', error)
+    }
+  }
+
+  /**
+   * 保存授权信息到本地存储
+   */
+  function saveAuth() {
+    try {
+      const data = {
+        accessToken: accessToken.value,
+        refreshToken: refreshToken.value,
+        userInfo: userInfo.value
+      }
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data))
+    } catch (error) {
+      console.error('[Auth] 保存授权信息失败:', error)
+    }
+  }
+
+  /**
    * 设置授权信息
+   * 适配 API 返回的数据结构
    */
   function setAuth(data) {
-    if (data.access_token) {
-      accessToken.value = data.access_token
+    // 访问令牌
+    if (data.token) {
+      accessToken.value = data.token
     }
-    if (data.refresh_token) {
-      refreshToken.value = data.refresh_token
+    // 刷新令牌
+    if (data.refreshToken) {
+      if (typeof data.refreshToken === 'object') {
+        refreshToken.value = data.refreshToken.value || ''
+      } else {
+        refreshToken.value = data.refreshToken
+      }
     }
-    if (data.user_info || data.userInfo) {
-      userInfo.value = data.user_info || data.userInfo
+    // 用户信息
+    if (data.userInfo) {
+      userInfo.value = data.userInfo
     }
+
     authStatus.value = 'success'
     errorMessage.value = ''
+
+    // 保存到本地存储
+    saveAuth()
   }
 
   /**
@@ -61,14 +112,11 @@ export const useAuthStore = defineStore('auth', () => {
     userInfo.value = null
     authStatus.value = 'idle'
     errorMessage.value = ''
+    localStorage.removeItem(AUTH_STORAGE_KEY)
   }
 
-  /**
-   * 更新访问令牌
-   */
-  function updateToken(token) {
-    accessToken.value = token
-  }
+  // 初始化时恢复授权信息
+  restoreAuth()
 
   return {
     // 状态
@@ -85,7 +133,6 @@ export const useAuthStore = defineStore('auth', () => {
     // 方法
     setAuth,
     setAuthStatus,
-    clearAuth,
-    updateToken
+    clearAuth
   }
 })

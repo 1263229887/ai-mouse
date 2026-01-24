@@ -1,12 +1,9 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { useDeviceStore, useAuthStore } from '@/stores'
 import { activateDevice } from '@/api'
 import SvgIcon from '@/components/SvgIcon/index.vue'
-
-const router = useRouter()
 
 // 设备状态
 const deviceStore = useDeviceStore()
@@ -14,24 +11,18 @@ const deviceStore = useDeviceStore()
 // 授权状态
 const authStore = useAuthStore()
 
-// 跳转到按键设置页面
-const goToSettings = () => {
-  router.push('/settings')
-}
-
 // 厂商ID轮询定时器
 let vendorIdTimer = null
-const vendorIdMaxAttempts = 120 // 最多尝试120次 = 60秒
+const vendorIdMaxAttempts = 120
 const vendorIdAttempts = ref(0)
 
-// 当前设备ID（用于轮询）
+// 当前设备ID
 let currentDeviceId = null
 
 /**
  * 开始轮询获取厂商ID
  */
 function startVendorIdPolling(deviceId) {
-  // 清除之前的定时器
   stopVendorIdPolling()
   vendorIdAttempts.value = 0
 
@@ -53,7 +44,6 @@ function startVendorIdPolling(deviceId) {
       console.error(`[VendorID] 获取失败:`, error)
     }
 
-    // 达到最大尝试次数，停止轮询
     if (vendorIdAttempts.value >= vendorIdMaxAttempts) {
       console.log(`[VendorID] 达到最大尝试次数，停止轮询`)
       stopVendorIdPolling()
@@ -73,18 +63,15 @@ function stopVendorIdPolling() {
 
 /**
  * 检查并执行设备授权
- * 当设备信息完整时自动调用授权接口
  */
 async function checkAndActivateDevice() {
   const { serialNumber, vendorId, version, isOnline } = deviceStore
 
-  // 检查设备信息是否完整
   if (!isOnline || !serialNumber || !vendorId || !version) {
     console.log('[Auth] 设备信息不完整，等待...')
     return
   }
 
-  // 已经授权过或正在授权中，跳过
   if (authStore.isAuthorized || authStore.isPending) {
     console.log('[Auth] 已授权或正在授权中')
     return
@@ -109,7 +96,7 @@ async function checkAndActivateDevice() {
   }
 }
 
-// 监听设备信息变化，自动触发授权
+// 监听设备信息变化
 watch(
   () => ({
     sn: deviceStore.serialNumber,
@@ -127,17 +114,15 @@ watch(
 
 /**
  * 初始化设备状态
- * 页面加载时主动查询当前设备状态，用于刷新后恢复
  */
 async function initDeviceState() {
   try {
     const state = await window.api?.device?.getCurrentState()
-    console.log('[Home] 当前设备状态:', state)
+    console.log('[Auth] 当前设备状态:', state)
 
     if (state) {
       currentDeviceId = state.deviceId
 
-      // 恢复设备信息
       deviceStore.updateDeviceInfo({
         deviceId: state.deviceId,
         connectionMode: state.connectionMode
@@ -156,13 +141,12 @@ async function initDeviceState() {
         deviceStore.setOnlineStatus(true)
       }
 
-      // 如果设备已连接但缺少厂商ID，开始轮询
       if (state.isOnline && !state.vendorId && currentDeviceId) {
         startVendorIdPolling(currentDeviceId)
       }
     }
   } catch (error) {
-    console.error('[Home] 获取设备状态失败:', error)
+    console.error('[Auth] 获取设备状态失败:', error)
   }
 }
 
@@ -170,7 +154,6 @@ async function initDeviceState() {
  * 初始化设备监听
  */
 function initDeviceListeners() {
-  // 监听设备连接
   window.api?.device?.onDeviceConnected((data) => {
     console.log('Device connected:', data)
     currentDeviceId = data.deviceId
@@ -178,10 +161,8 @@ function initDeviceListeners() {
       deviceId: data.deviceId,
       connectionMode: data.connectionMode
     })
-    // 注意：不在这里开始轮询，等待 deviceActive 确认设备已激活后再轮询
   })
 
-  // 监听设备断开
   window.api?.device?.onDeviceDisconnected((data) => {
     console.log('Device disconnected:', data)
     stopVendorIdPolling()
@@ -189,12 +170,10 @@ function initDeviceListeners() {
     deviceStore.resetDevice()
   })
 
-  // 监听设备消息（包含设备信息更新）
   window.api?.device?.onDeviceMessage((data) => {
     console.log('Device message:', data)
     const { data: messageData } = data
 
-    // 根据消息类型更新设备信息
     if (messageData && messageData.type) {
       switch (messageData.type) {
         case 'deviceSN':
@@ -205,13 +184,11 @@ function initDeviceListeners() {
           break
         case 'deviceActive':
           deviceStore.setOnlineStatus(messageData.active === 1)
-          // 设备已激活，开始轮询获取厂商ID
           if (messageData.active === 1 && currentDeviceId && !deviceStore.vendorId) {
             startVendorIdPolling(currentDeviceId)
           }
           break
         default:
-          // 其他消息类型（如 deviceKeyEvent）暂不处理
           break
       }
     }
@@ -219,22 +196,18 @@ function initDeviceListeners() {
 }
 
 onMounted(() => {
-  // 先查询当前设备状态（用于刷新后恢复）
   initDeviceState()
-  // 注册设备事件监听
   initDeviceListeners()
 })
 
 onUnmounted(() => {
-  // 停止轮询
   stopVendorIdPolling()
-  // 移除监听器
   window.api?.device?.removeAllListeners()
 })
 </script>
 
 <template>
-  <div class="home-container">
+  <div class="auth-container">
     <div class="content-wrapper">
       <!-- 鼠标图标 -->
       <div class="mouse-icon">
@@ -247,13 +220,11 @@ onUnmounted(() => {
       <!-- 授权成功状态 -->
       <template v-if="authStore.isAuthorized">
         <span class="auth-status success">授权成功</span>
-        
+
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
-
-        <button class="settings-btn" @click="goToSettings">按键设置</button>
       </template>
 
       <!-- 授权中状态 -->
@@ -288,9 +259,9 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-.home-container {
+.auth-container {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -329,7 +300,7 @@ onUnmounted(() => {
   font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: clamp(0.875rem, 1.5vw, 1rem);
   font-weight: 500;
-  margin-top: clamp(0.375rem, 0.8vw, 0.5rem);
+  margin-top: clamp(0.375rem, 0.8vh, 0.5rem);
   transition: color 0.3s ease;
 
   &.success {
@@ -349,8 +320,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(0.375rem, 0.8vw, 0.5rem);
-  margin-top: clamp(1.25rem, 2.5vw, 1.5rem);
+  gap: clamp(0.375rem, 0.8vh, 0.5rem);
+  margin-top: clamp(1.25rem, 2.5vh, 1.5rem);
 }
 
 .info-text {
@@ -359,32 +330,6 @@ onUnmounted(() => {
   font-weight: 400;
   color: var(--text-secondary);
   transition: color 0.3s ease;
-}
-
-.settings-btn {
-  margin-top: clamp(1.25rem, 2.5vw, 1.5rem);
-  padding: clamp(0.625rem, 1.2vw, 0.75rem) clamp(2rem, 4vw, 3rem);
-  border: none;
-  border-radius: clamp(0.4rem, 0.8vw, 0.5rem);
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: clamp(0.8rem, 1.3vw, 0.875rem);
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.3s ease,
-    transform 0.2s ease,
-    opacity 0.2s ease;
-
-  &:hover {
-    opacity: 0.9;
-    transform: scale(1.02);
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
 }
 
 .device-loading {

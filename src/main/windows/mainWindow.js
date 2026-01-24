@@ -23,15 +23,15 @@ export function createMainWindow() {
   // 获取主屏幕尺寸
   const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize
 
-  // 基准比例 (16:9 比例，基于 1920x1080)
-  const aspectRatio = 16 / 9
+  // 基准比例 (3:2 比例，基于 1200x800)
+  const aspectRatio = 3 / 2
 
-  // 初始窗口：屏幕的 3/4 宽度，高度按比例计算
-  const initialWidth = Math.round((screenWidth * 3) / 4)
+  // 初始窗口：屏幕的 66% 宽度，高度按比例计算
+  const initialWidth = Math.round(screenWidth * 0.66)
   const initialHeight = Math.round(initialWidth / aspectRatio)
 
-  // 最小窗口：屏幕的 1/2 宽度，高度按比例计算
-  const minWidth = Math.round(screenWidth / 2)
+  // 最小窗口：屏幕的 50% 宽度，高度按比例计算
+  const minWidth = Math.round(screenWidth * 0.5)
   const minHeight = Math.round(minWidth / aspectRatio)
 
   const mainWindow = new BrowserWindow({

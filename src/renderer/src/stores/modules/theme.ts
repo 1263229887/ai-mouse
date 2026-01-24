@@ -8,17 +8,14 @@ export type ThemeType = 'light' | 'dark'
 const THEME_STORAGE_KEY = 'app-theme'
 
 export const useThemeStore = defineStore('theme', () => {
-  // 从本地存储读取主题，默认 light
+  // 从本地存储读取主题，默认 dark
   const getInitialTheme = (): ThemeType => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
     if (stored === 'light' || stored === 'dark') {
       return stored
     }
-    // 跟随系统偏好
-    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-      return 'dark'
-    }
-    return 'light'
+    // 默认使用暗色主题
+    return 'dark'
   }
 
   // 当前主题

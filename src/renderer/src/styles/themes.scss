@@ -53,6 +53,10 @@
   --icon-color: #303133;
   --icon-color-secondary: #606266;
 
+  // 按钮颜色
+  --btn-primary-bg: #111111;
+  --btn-primary-text: #ffffff;
+
   // Element Plus 主题覆盖
   --el-color-primary: var(--color-primary);
   --el-bg-color: var(--bg-color);
@@ -75,15 +79,15 @@
   --color-primary-dark: #3a8ee6;
   
   // 功能色
-  --color-success: #67c23a;
+  --color-success: #34c759;
   --color-warning: #e6a23c;
   --color-danger: #f56c6c;
   --color-info: #909399;
 
   // 文字颜色
-  --text-primary: #e5eaf3;
+  --text-primary: #ffffff;
   --text-regular: #cfd3dc;
-  --text-secondary: #a3a6ad;
+  --text-secondary: #606c80;
   --text-placeholder: #8d9095;
   --text-disabled: #6c6e72;
 
@@ -113,8 +117,12 @@
   --scrollbar-track: transparent;
 
   // 图形/图标颜色（用于 SVG 等）
-  --icon-color: #e5eaf3;
+  --icon-color: #ffffff;
   --icon-color-secondary: #cfd3dc;
+
+  // 按钮颜色
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #111111;
 
   // Element Plus 主题覆盖
   --el-color-primary: var(--color-primary);
