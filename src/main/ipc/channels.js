@@ -94,5 +94,21 @@ export const IPC_CHANNELS = {
   CRYPTO: {
     // 生成加密的 open_id
     GENERATE_OPEN_ID: 'crypto:generate-open-id'
+  },
+
+  // ============ 更新相关 ============
+  UPDATER: {
+    // 检查更新
+    CHECK: 'updater:check',
+    // 下载更新
+    DOWNLOAD: 'updater:download',
+    // 下载进度
+    DOWNLOAD_PROGRESS: 'updater:download-progress',
+    // 下载完成
+    DOWNLOADED: 'updater:downloaded',
+    // 更新错误
+    ERROR: 'updater:error',
+    // 退出并安装
+    QUIT_AND_INSTALL: 'updater:quit-and-install'
   }
 }

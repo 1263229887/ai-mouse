@@ -19,7 +19,10 @@ import {
   addEventListener,
   generateOpenId,
   getCurrentDeviceState,
-  updateDeviceVendorId
+  updateDeviceVendorId,
+  checkForUpdate,
+  downloadUpdate,
+  quitAndInstall
 } from '../services'
 
 /**
@@ -157,6 +160,26 @@ function registerCryptoHandlers() {
 }
 
 /**
+ * 注册更新相关 IPC
+ */
+function registerUpdaterHandlers() {
+  // 检查更新
+  ipcMain.handle(IPC_CHANNELS.UPDATER.CHECK, async () => {
+    return await checkForUpdate()
+  })
+
+  // 下载更新
+  ipcMain.on(IPC_CHANNELS.UPDATER.DOWNLOAD, () => {
+    downloadUpdate()
+  })
+
+  // 退出并安装
+  ipcMain.on(IPC_CHANNELS.UPDATER.QUIT_AND_INSTALL, () => {
+    quitAndInstall()
+  })
+}
+
+/**
  * 关闭 SDK
  */
 export function shutdownSDK() {
@@ -172,6 +195,7 @@ export function registerAllHandlers() {
   registerThemeHandlers()
   registerDeviceHandlers()
   registerCryptoHandlers()
+  registerUpdaterHandlers()
 
   // 保留原有的 ping 测试
   ipcMain.on('ping', () => console.log('pong'))

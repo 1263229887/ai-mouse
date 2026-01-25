@@ -6,6 +6,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow, windowManager } from './windows'
 import { registerAllHandlers, shutdownSDK } from './ipc'
+import { setupUpdater } from './services'
 
 // 应用就绪后初始化
 app.whenReady().then(() => {
@@ -19,6 +20,9 @@ app.whenReady().then(() => {
 
   // 注册所有 IPC 处理器
   registerAllHandlers()
+
+  // 初始化自动更新服务
+  setupUpdater()
 
   // 创建主窗口
   createMainWindow()

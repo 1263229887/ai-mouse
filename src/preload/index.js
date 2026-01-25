@@ -1,6 +1,14 @@
 import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { windowApi, MiniWindowType, appApi, themeApi, deviceApi, cryptoApi } from './api'
+import {
+  windowApi,
+  MiniWindowType,
+  appApi,
+  themeApi,
+  deviceApi,
+  cryptoApi,
+  updaterApi
+} from './api'
 
 /**
  * 渲染进程可用的自定义 API
@@ -20,7 +28,10 @@ const api = {
   device: deviceApi,
 
   // 加密操作
-  crypto: cryptoApi
+  crypto: cryptoApi,
+
+  // 更新操作
+  updater: updaterApi
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
