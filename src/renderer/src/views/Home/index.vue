@@ -2,11 +2,14 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
-import { useDeviceStore, useAuthStore } from '@/stores'
+import { useDeviceStore, useAuthStore, useAppStore } from '@/stores'
 import { activateDevice } from '@/api'
 import SvgIcon from '@/components/SvgIcon/index.vue'
 
 const router = useRouter()
+
+// 应用状态
+const appStore = useAppStore()
 
 // 设备状态
 const deviceStore = useDeviceStore()
@@ -14,8 +17,9 @@ const deviceStore = useDeviceStore()
 // 授权状态
 const authStore = useAuthStore()
 
-// 跳转到按键设置页面
+// 点击按键设置，设置状态并跳转到设备设置页
 const goToSettings = () => {
+  appStore.setHasEnteredApp(true)
   router.push('/settings')
 }
 

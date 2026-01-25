@@ -6,7 +6,7 @@ const route = useRoute()
 const router = useRouter()
 
 const menuItems = [
-  { name: '首页', path: '/' },
+  { name: '首页', path: '/home' },
   { name: '设备授权', path: '/auth' },
   { name: '设备设置', path: '/settings' },
   { name: '版本检测', path: '/version' }

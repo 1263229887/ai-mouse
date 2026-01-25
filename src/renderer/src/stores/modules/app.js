@@ -18,6 +18,9 @@ export const useAppStore = defineStore('app', () => {
   // 当前窗口类型
   const windowType = ref('main')
 
+  // 用户是否已进入过应用（点击过按键设置按钮）
+  const hasEnteredApp = ref(localStorage.getItem('hasEnteredApp') === 'true')
+
   /**
    * 设置初始化状态
    * @param {boolean} status
@@ -48,6 +51,15 @@ export const useAppStore = defineStore('app', () => {
    */
   function setWindowType(type) {
     windowType.value = type
+  }
+
+  /**
+   * 设置用户已进入应用状态
+   * @param {boolean} entered
+   */
+  function setHasEnteredApp(entered) {
+    hasEnteredApp.value = entered
+    localStorage.setItem('hasEnteredApp', String(entered))
   }
 
   /**
@@ -88,10 +100,12 @@ export const useAppStore = defineStore('app', () => {
     version,
     isLoading,
     windowType,
+    hasEnteredApp,
     setInitialized,
     setVersion,
     setLoading,
     setWindowType,
+    setHasEnteredApp,
     initApp
   }
 })
