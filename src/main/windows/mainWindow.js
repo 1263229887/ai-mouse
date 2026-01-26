@@ -41,7 +41,8 @@ export function createMainWindow() {
     minHeight: minHeight,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // Windows 和 Linux 需要显式设置图标，macOS 使用 .icns 文件
+    ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false

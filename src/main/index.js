@@ -2,16 +2,22 @@
  * 主进程入口
  */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeImage } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow, windowManager } from './windows'
 import { registerAllHandlers, shutdownSDK } from './ipc'
-import { setupUpdater } from './services'
+import { setupUpdater, getIsUpdating } from './services'
+import icon from '../../resources/icon.png?asset'
 
 // 应用就绪后初始化
 app.whenReady().then(() => {
   // 设置应用 ID (Windows)
   electronApp.setAppUserModelId('com.electron')
+
+  // macOS: 设置 Dock 图标（开发模式下也显示正确图标）
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(nativeImage.createFromPath(icon))
+  }
 
   // 监听窗口创建，配置快捷键
   app.on('browser-window-created', (_, window) => {
@@ -36,8 +42,9 @@ app.whenReady().then(() => {
 })
 
 // 所有窗口关闭时退出应用（macOS 除外）
+// 注意：更新安装期间不要退出，让 autoUpdater.quitAndInstall 处理
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && !getIsUpdating()) {
     app.quit()
   }
 })

@@ -3,7 +3,7 @@
  * 负责检查更新、下载更新、安装更新
  */
 
-import { app, BrowserWindow, globalShortcut } from 'electron'
+import { app, globalShortcut } from 'electron'
 import updater from 'electron-updater'
 import { is } from '@electron-toolkit/utils'
 import { windowManager } from '../windows'
@@ -149,31 +149,18 @@ export function downloadUpdate() {
 /**
  * 退出并安装更新
  */
-export async function quitAndInstall() {
+export function quitAndInstall() {
   console.log('[Updater] 用户确认重启并安装')
 
+  // 设置更新标志，阻止 window-all-closed 触发 app.quit()
   isUpdating = true
 
   // 注销所有全局快捷键
   globalShortcut.unregisterAll()
 
-  // 关闭所有窗口
-  console.log('[Updater] 关闭所有窗口...')
-  BrowserWindow.getAllWindows().forEach((win) => {
-    try {
-      win.removeAllListeners('close')
-      win.destroy()
-    } catch {
-      // 忽略错误
-    }
-  })
-
-  // 等待资源释放
-  console.log('[Updater] 等待资源释放...')
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-
-  // 执行安装
   console.log('[Updater] 执行 quitAndInstall')
+  // 让 electron-updater 自己处理窗口关闭和应用退出
+  // 参数说明：isSilent=false（显示安装界面），isForceRunAfter=true（安装后启动应用）
   autoUpdater.quitAndInstall(false, true)
 }
 
