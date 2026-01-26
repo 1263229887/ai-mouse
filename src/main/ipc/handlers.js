@@ -289,7 +289,7 @@ function startRecording(deviceId, keyIndex, businessMode) {
     return
   }
 
-  // 如果是鼠标录音，启用鼠标麦克风（用 try-catch 保护）
+  // 如果是鼠标录音，启用鼠标麦克风
   if (deviceConfig.recordingSource === RECORDING_SOURCE.MOUSE && deviceId) {
     try {
       console.log('[Main] 启用鼠标麦克风')
@@ -300,12 +300,6 @@ function startRecording(deviceId, keyIndex, businessMode) {
       }
     } catch (error) {
       console.error('[Main] 鼠标录音启动异常:', error)
-      // 发生异常时尝试禁用麦克风，防止鼠标卡死
-      try {
-        setDeviceMicrophoneEnable(deviceId, 0)
-      } catch {
-        /* ignore */
-      }
       return
     }
   }
@@ -345,19 +339,11 @@ function startRecording(deviceId, keyIndex, businessMode) {
 
 /**
  * 停止录音
+ * 注意：不在这里禁用麦克风，而是在小窗口 closed 事件中检测并关闭
+ * 这样可以避免在音频数据还在传输时禁用麦克风导致鼠标卡死
  */
 function stopRecording() {
   console.log('[Main] stopRecording:', currentRecordingState)
-
-  // 如果是鼠标录音，禁用鼠标麦克风（用 try-catch 保护）
-  if (deviceConfig.recordingSource === RECORDING_SOURCE.MOUSE && currentRecordingState.deviceId) {
-    try {
-      console.log('[Main] 禁用鼠标麦克风')
-      setDeviceMicrophoneEnable(currentRecordingState.deviceId, 0)
-    } catch (error) {
-      console.error('[Main] 禁用鼠标麦克风异常:', error)
-    }
-  }
 
   // 通知渲染进程录音停止
   windowManager.broadcast(IPC_CHANNELS.DEVICE.KEY_EVENT, {

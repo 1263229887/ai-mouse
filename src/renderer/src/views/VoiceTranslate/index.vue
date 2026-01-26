@@ -197,7 +197,7 @@ const handleClose = async () => {
       pasteStatus.value = 'success'
       recordingStatus.value = '粘贴成功 ✓'
 
-      // 5. 延迟后关闭窗口
+      // 5. 延迟后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
       setTimeout(() => {
         window.api?.window?.close()
       }, 2000)

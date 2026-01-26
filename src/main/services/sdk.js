@@ -27,6 +27,7 @@ let SDK_registerDeviceAudioDataListener = null
 let SDK_setVoiceKey = null
 let SDK_getVoiceKey = null
 let SDK_setDeviceMicrophoneEnable = null
+let SDK_getDeviceMicrophoneEnable = null
 let SDK_getAudioEnable = null
 
 // 回调函数引用（防止被GC回收）
@@ -174,21 +175,15 @@ export function initSDK(debug = false) {
     SDK_setDeviceMicrophoneEnable = libm.func(
       'bool setDeviceMicrophoneEnable(const char* deviceId, int enable)'
     )
+    SDK_getDeviceMicrophoneEnable = libm.func(
+      'bool getDeviceMicrophoneEnable(const char* deviceId)'
+    )
     SDK_getAudioEnable = libm.func('bool getAudioEnable(const char* deviceId)')
 
     // 初始化 SDK
     SDK_sdkInit(debug)
     // SDK_sdkInit(true)
     console.log('[SDK] SDK initialized')
-
-    // 禁用 AI 键默认的打开网址功能
-    // setVoiceKey(0) 禁用默认行为
-    try {
-      SDK_setVoiceKey(0)
-      console.log('[SDK] AI key default behavior disabled')
-    } catch (error) {
-      console.warn('[SDK] Failed to disable AI key default behavior:', error)
-    }
 
     // 注册回调
     registerCallbacks()
@@ -223,14 +218,6 @@ function registerCallbacks() {
       audioEnabled: null, // null: 未知, true: 可用, false: 不可用
       audioAccess: null // null: 未知, 1: 有权限, 0: 无权限
     })
-
-    // 设备连接后再次禁用AI键默认行为（确保生效）
-    try {
-      SDK_setVoiceKey(0)
-      console.log('[SDK] AI key default behavior disabled on device connect')
-    } catch (error) {
-      console.warn('[SDK] Failed to disable AI key on device connect:', error)
-    }
 
     // 请求设备信息
     SDK_getDeviceActive(deviceId)
@@ -608,6 +595,26 @@ export function setDeviceMicrophoneEnable(deviceId, enable) {
   } catch (error) {
     console.error('[SDK] setDeviceMicrophoneEnable error:', error)
     return false
+  }
+}
+
+/**
+ * 获取设备麦克风状态
+ * @param {string} deviceId - 设备ID
+ * @returns {boolean|null} true: 开启, false: 关闭, null: 查询失败
+ */
+export function getDeviceMicrophoneEnable(deviceId) {
+  if (!isInitialized || !SDK_getDeviceMicrophoneEnable) {
+    console.log('[SDK] getDeviceMicrophoneEnable not available')
+    return null
+  }
+  try {
+    const result = SDK_getDeviceMicrophoneEnable(deviceId)
+    console.log('[SDK] getDeviceMicrophoneEnable:', deviceId, 'result:', result)
+    return result
+  } catch (error) {
+    console.error('[SDK] getDeviceMicrophoneEnable error:', error)
+    return null
   }
 }
 

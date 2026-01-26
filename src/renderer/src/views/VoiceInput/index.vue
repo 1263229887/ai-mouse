@@ -267,6 +267,7 @@ const handleClose = async () => {
   connectionStatus.value = 'stopped'
   onlineCharCount = 0
 
+  // 延迟后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
   setTimeout(() => {
     window.api?.window?.close()
   }, 300)

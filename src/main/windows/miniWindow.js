@@ -8,6 +8,11 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { windowManager } from './windowManager'
+import {
+  getCurrentDeviceState,
+  getDeviceMicrophoneEnable,
+  setDeviceMicrophoneEnable
+} from '../services'
 
 /**
  * 小窗口类型枚举
@@ -96,10 +101,10 @@ export function createMiniWindow(type, route, options = {}) {
 
   miniWindow.on('ready-to-show', () => {
     miniWindow.show()
-    // 开发环境下自动打开开发者工具
-    if (is.dev) {
-      miniWindow.webContents.openDevTools({ mode: 'detach' })
-    }
+    // 暂时关闭开发者工具，测试是否影响鼠标录音
+    // if (is.dev) {
+    //   miniWindow.webContents.openDevTools({ mode: 'detach' })
+    // }
   })
 
   // 加载页面（带路由）
@@ -147,13 +152,20 @@ export function createBusinessCWindow(options = {}) {
  * @returns {BrowserWindow}
  */
 export function createVoiceTranslateWindow(options = {}) {
-  return createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
+  const win = createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
     width: 380,
     height: 420,
     minHeight: 200,
     maxHeight: 600,
     ...options
   })
+
+  // 窗口关闭时检测并关闭麦克风
+  win.on('closed', () => {
+    checkAndDisableMicrophone('VoiceTranslate')
+  })
+
+  return win
 }
 
 /**
@@ -162,7 +174,7 @@ export function createVoiceTranslateWindow(options = {}) {
  * @returns {BrowserWindow}
  */
 export function createVoiceInputWindow(options = {}) {
-  return createMiniWindow(MiniWindowType.VOICE_INPUT, '/mini/voice-input', {
+  const win = createMiniWindow(MiniWindowType.VOICE_INPUT, '/mini/voice-input', {
     width: 80,
     height: 80,
     transparent: true, // 透明背景
@@ -170,4 +182,40 @@ export function createVoiceInputWindow(options = {}) {
     backgroundColor: '#00000000', // 完全透明背景色
     ...options
   })
+
+  // 窗口关闭时检测并关闭麦克风
+  win.on('closed', () => {
+    checkAndDisableMicrophone('VoiceInput')
+  })
+
+  return win
+}
+
+/**
+ * 检测并关闭麦克风
+ * 在语音业务小窗口关闭时调用，检查麦克风状态，如果开启则关闭
+ * @param {string} source - 来源标识（用于日志）
+ */
+function checkAndDisableMicrophone(source) {
+  try {
+    const deviceState = getCurrentDeviceState()
+    if (!deviceState || !deviceState.deviceId) {
+      console.log(`[${source}] 窗口关闭 - 无设备连接，跳过麦克风检测`)
+      return
+    }
+
+    const deviceId = deviceState.deviceId
+    const micStatus = getDeviceMicrophoneEnable(deviceId)
+    console.log(`[${source}] 窗口关闭 - 麦克风状态:`, micStatus)
+
+    if (micStatus === true) {
+      console.log(`[${source}] 麦克风开启中，执行关闭`)
+      setDeviceMicrophoneEnable(deviceId, 0)
+      console.log(`[${source}] 麦克风已关闭`)
+    } else {
+      console.log(`[${source}] 麦克风已关闭或未开启，无需操作`)
+    }
+  } catch (error) {
+    console.error(`[${source}] 检测/关闭麦克风异常:`, error)
+  }
 }

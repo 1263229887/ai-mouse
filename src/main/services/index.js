@@ -17,6 +17,7 @@ export {
   setVoiceKey,
   getVoiceKey,
   setDeviceMicrophoneEnable,
+  getDeviceMicrophoneEnable,
   getAudioEnable,
   checkDeviceAudioStatus
 } from './sdk'
