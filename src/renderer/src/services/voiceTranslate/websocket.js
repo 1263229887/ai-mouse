@@ -1,12 +1,12 @@
 /**
- * 语音输入 WebSocket 模块
- * 负责与语音识别服务端通信
+ * 语音翻译 WebSocket 模块
+ * 负责与语音翻译服务端通信
  */
 
 /**
- * 语音输入 WebSocket 服务类
+ * 语音翻译 WebSocket 服务类
  */
-export class VoiceInputWebSocket {
+export class VoiceTranslateWebSocket {
   constructor(options = {}) {
     this.ws = null
     this.url = options.url || import.meta.env.VITE_VOICE_INPUT_WS_URL
@@ -28,11 +28,11 @@ export class VoiceInputWebSocket {
         return
       }
 
-      console.log('[VoiceInputWS] 连接:', this.url)
+      console.log('[VoiceTranslateWS] 连接:', this.url)
       this.ws = new WebSocket(this.url)
 
       this.ws.onopen = () => {
-        console.log('[VoiceInputWS] 连接成功')
+        console.log('[VoiceTranslateWS] 连接成功')
         // 发送初始配置
         this._sendInitConfig()
         if (this.onConnected) this.onConnected()
@@ -42,22 +42,22 @@ export class VoiceInputWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          console.log('[VoiceInputWS] 收到消息:', data)
+          console.log('[VoiceTranslateWS] 收到消息:', data)
           if (this.onMessage) this.onMessage(data)
         } catch {
-          console.log('[VoiceInputWS] 收到原始消息:', event.data)
+          console.log('[VoiceTranslateWS] 收到原始消息:', event.data)
           if (this.onMessage) this.onMessage(event.data)
         }
       }
 
       this.ws.onerror = (error) => {
-        console.error('[VoiceInputWS] 连接错误:', error)
+        console.error('[VoiceTranslateWS] 连接错误:', error)
         if (this.onError) this.onError(error)
         reject(error)
       }
 
       this.ws.onclose = () => {
-        console.log('[VoiceInputWS] 连接关闭')
+        console.log('[VoiceTranslateWS] 连接关闭')
         if (this.onDisconnected) this.onDisconnected()
       }
     })
@@ -89,7 +89,7 @@ export class VoiceInputWebSocket {
       ...options.extraParams
     }
 
-    console.log('[VoiceInputWS] 发送初始配置:', config)
+    console.log('[VoiceTranslateWS] 发送初始配置:', config)
     this.ws.send(JSON.stringify(config))
   }
 
@@ -116,7 +116,7 @@ export class VoiceInputWebSocket {
         mode: '2pass',
         max_end_silence_time: 500
       }
-      console.log('[VoiceInputWS] 发送停止信号:', stopConfig)
+      console.log('[VoiceTranslateWS] 发送停止信号:', stopConfig)
       this.ws.send(JSON.stringify(stopConfig))
     }
   }

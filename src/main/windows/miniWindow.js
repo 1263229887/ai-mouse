@@ -18,7 +18,9 @@ export const MiniWindowType = {
   // 业务类型2（预留）
   BUSINESS_B: 'mini-business-b',
   // 业务类型3（预留）
-  BUSINESS_C: 'mini-business-c'
+  BUSINESS_C: 'mini-business-c',
+  // 语音翻译
+  VOICE_TRANSLATE: 'mini-voice-translate'
 }
 
 /**
@@ -92,6 +94,10 @@ export function createMiniWindow(type, route, options = {}) {
 
   miniWindow.on('ready-to-show', () => {
     miniWindow.show()
+    // 开发环境下自动打开开发者工具
+    if (is.dev) {
+      miniWindow.webContents.openDevTools({ mode: 'detach' })
+    }
   })
 
   // 加载页面（带路由）
@@ -131,4 +137,17 @@ export function createBusinessBWindow(options = {}) {
  */
 export function createBusinessCWindow(options = {}) {
   return createMiniWindow(MiniWindowType.BUSINESS_C, '/mini/business-c', options)
+}
+
+/**
+ * 创建语音翻译小窗口
+ * @param {object} options - 额外配置
+ * @returns {BrowserWindow}
+ */
+export function createVoiceTranslateWindow(options = {}) {
+  return createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
+    width: 420,
+    height: 520,
+    ...options
+  })
 }

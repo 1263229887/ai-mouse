@@ -74,13 +74,30 @@ const handleVoiceInput = async () => {
   }
 }
 
+// 处理语音翻译卡片点击
+const handleVoiceTranslate = () => {
+  console.log('[语音翻译] 打开语音翻译窗口')
+  // 创建语音翻译小窗口
+  window.api?.window?.createMini('mini-voice-translate')
+}
+
 // 点击卡片
 const handleCardClick = (card) => {
   console.log('点击业务卡片:', card.name)
 
-  // 语音输入卡片特殊处理
-  if (card.id === 'voice-input') {
-    handleVoiceInput()
+  switch (card.id) {
+    case 'voice-input':
+      handleVoiceInput()
+      break
+    case 'voice-translate':
+      handleVoiceTranslate()
+      break
+    case 'ai-assistant':
+      console.log('[AI助手] 功能待实现')
+      break
+    case 'ai-tools':
+      console.log('[AI工具集] 功能待实现')
+      break
   }
 }
 </script>
@@ -156,7 +173,11 @@ const handleCardClick = (card) => {
 }
 
 .card-name {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.875rem, 1.5vw, 1rem);
   font-weight: 500;
   color: var(--text-primary);

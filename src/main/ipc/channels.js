@@ -15,7 +15,9 @@ export const IPC_CHANNELS = {
     // 最大化/还原窗口
     MAXIMIZE: 'window:maximize',
     // 窗口状态变化
-    STATE_CHANGED: 'window:state-changed'
+    STATE_CHANGED: 'window:state-changed',
+    // 移动窗口（相对位移）
+    MOVE_BY: 'window:move-by'
   },
 
   // ============ 应用相关 ============

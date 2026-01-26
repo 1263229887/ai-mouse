@@ -11,7 +11,8 @@ import { ipcRenderer } from 'electron'
 export const MiniWindowType = {
   BUSINESS_A: 'mini-business-a',
   BUSINESS_B: 'mini-business-b',
-  BUSINESS_C: 'mini-business-c'
+  BUSINESS_C: 'mini-business-c',
+  VOICE_TRANSLATE: 'mini-voice-translate'
 }
 
 export const windowApi = {
@@ -35,6 +36,13 @@ export const windowApi = {
    * 最大化/还原当前窗口
    */
   maximize: () => ipcRenderer.send('window:maximize'),
+
+  /**
+   * 移动窗口（相对位移）
+   * @param {number} deltaX - X轴位移
+   * @param {number} deltaY - Y轴位移
+   */
+  moveBy: (deltaX, deltaY) => ipcRenderer.send('window:move-by', { deltaX, deltaY }),
 
   /**
    * 监听窗口状态变化

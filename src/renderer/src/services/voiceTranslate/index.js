@@ -1,23 +1,24 @@
 /**
- * 语音输入服务
- * 整合录音器和 WebSocket，提供语音输入功能
+ * 语音翻译服务
+ * 整合录音器和 WebSocket，提供语音翻译功能
  */
 
-import { VoiceRecorder } from './recorder'
-import { VoiceInputWebSocket } from './websocket'
+import { VoiceRecorder } from '../voiceInput/recorder'
+import { VoiceTranslateWebSocket } from './websocket'
 
 /**
- * 语音输入服务类
+ * 语音翻译服务类
  */
-export class VoiceInputService {
+export class VoiceTranslateService {
   constructor() {
     this.recorder = null
     this.websocket = null
     this.isRunning = false
+    this.isInitialized = false
     this.onMessage = null // 服务端消息回调
     this.onStateChange = null // 状态变化回调
-    // 语音输入配置 - 完整的默认参数
-    this.inputOptions = {
+    // 翻译配置 - 完整的默认参数
+    this.translateOptions = {
       mode: '2pass',
       language_id: 'ZH',
       is_denoiser: false,
@@ -25,22 +26,11 @@ export class VoiceInputService {
       sourceLanguage: 'ZH',
       targetLanguage: 'EN',
       openTranslate: true,
-      openTts: true, // 语音输入默认开启TTS
+      openTts: false,
       timbre: '1',
-      conversationId: Date.now().toString(),
+      conversationId: '1111',
       is_use_timestamp_model: false,
       stopInterval: '1500'
-    }
-  }
-
-  /**
-   * 设置输入配置
-   * @param {object} options - 配置参数
-   */
-  setInputOptions(options) {
-    this.inputOptions = {
-      ...this.inputOptions,
-      ...options
     }
   }
 
@@ -48,6 +38,14 @@ export class VoiceInputService {
    * 初始化服务
    */
   init() {
+    // 防止重复初始化
+    if (this.isInitialized && this.recorder) {
+      console.log('[VoiceTranslateService] 已初始化，跳过')
+      return
+    }
+
+    console.log('[VoiceTranslateService] 开始初始化录音器...')
+
     // 初始化录音器
     this.recorder = new VoiceRecorder({
       onAudioChunk: (chunk) => {
@@ -59,64 +57,85 @@ export class VoiceInputService {
     })
 
     this.recorder.init()
-    console.log('[VoiceInputService] 初始化完成')
+    this.isInitialized = true
+    console.log('[VoiceTranslateService] 初始化完成')
   }
 
   /**
-   * 开始语音输入
+   * 设置翻译配置
+   * @param {object} options - 翻译配置
+   */
+  setTranslateOptions(options) {
+    this.translateOptions = {
+      ...this.translateOptions,
+      ...options
+    }
+  }
+
+  /**
+   * 开始语音翻译
    * @param {object} options - 可选的配置参数
    */
   async start(options = {}) {
     if (this.isRunning) {
-      console.warn('[VoiceInputService] 已在运行中')
+      console.warn('[VoiceTranslateService] 已在运行中')
       return
     }
 
+    // 确保已初始化
+    if (!this.isInitialized || !this.recorder) {
+      console.log('[VoiceTranslateService] 未初始化，先初始化...')
+      this.init()
+    }
+
     const wsOptions = {
-      ...this.inputOptions,
+      ...this.translateOptions,
       ...options,
-      // 每次启动生成新的 conversationId
-      conversationId: options.conversationId || Date.now().toString(),
       onMessage: (data) => {
         if (this.onMessage) this.onMessage(data)
       },
       onConnected: () => {
-        console.log('[VoiceInputService] WebSocket 已连接')
+        console.log('[VoiceTranslateService] WebSocket 已连接')
         if (this.onStateChange) this.onStateChange('connected')
       },
       onDisconnected: () => {
-        console.log('[VoiceInputService] WebSocket 已断开')
+        console.log('[VoiceTranslateService] WebSocket 已断开')
         if (this.onStateChange) this.onStateChange('disconnected')
       },
       onError: (error) => {
-        console.error('[VoiceInputService] WebSocket 错误:', error)
+        console.error('[VoiceTranslateService] WebSocket 错误:', error)
         if (this.onStateChange) this.onStateChange('error')
       }
     }
 
     // 初始化 WebSocket
-    this.websocket = new VoiceInputWebSocket(wsOptions)
+    console.log('[VoiceTranslateService] 创建 WebSocket 实例...')
+    this.websocket = new VoiceTranslateWebSocket(wsOptions)
 
     try {
       // 连接 WebSocket
+      console.log('[VoiceTranslateService] 开始连接 WebSocket...')
       await this.websocket.connect()
+      console.log('[VoiceTranslateService] WebSocket 连接成功')
 
       // 开始录音
+      console.log('[VoiceTranslateService] 开始录音...')
       await this.recorder.start()
+      console.log('[VoiceTranslateService] 录音启动成功')
 
       this.isRunning = true
       if (this.onStateChange) this.onStateChange('recording')
 
-      console.log('[VoiceInputService] 开始语音输入')
+      console.log('[VoiceTranslateService] 开始语音翻译')
     } catch (error) {
-      console.error('[VoiceInputService] 启动失败:', error)
+      console.error('[VoiceTranslateService] 启动失败:', error)
       this.stop()
       throw error
     }
   }
 
   /**
-   * 停止语音输入
+   * 停止语音翻译
    */
   async stop() {
     if (!this.isRunning && !this.websocket) {
@@ -143,7 +162,7 @@ export class VoiceInputService {
     this.isRunning = false
     if (this.onStateChange) this.onStateChange('stopped')
 
-    console.log('[VoiceInputService] 停止语音输入')
+    console.log('[VoiceTranslateService] 停止语音翻译')
   }
 
   /**
@@ -155,6 +174,7 @@ export class VoiceInputService {
       this.recorder.destroy()
       this.recorder = null
     }
+    this.isInitialized = false
   }
 
   /**
@@ -166,18 +186,17 @@ export class VoiceInputService {
 }
 
 // 导出模块
-export { VoiceRecorder } from './recorder'
-export { VoiceInputWebSocket } from './websocket'
+export { VoiceTranslateWebSocket } from './websocket'
 
 // 创建单例
-let voiceInputInstance = null
+let voiceTranslateInstance = null
 
 /**
- * 获取语音输入服务实例
+ * 获取语音翻译服务实例
  */
-export function getVoiceInputService() {
-  if (!voiceInputInstance) {
-    voiceInputInstance = new VoiceInputService()
+export function getVoiceTranslateService() {
+  if (!voiceTranslateInstance) {
+    voiceTranslateInstance = new VoiceTranslateService()
   }
-  return voiceInputInstance
+  return voiceTranslateInstance
 }

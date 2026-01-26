@@ -10,6 +10,7 @@ import {
   createBusinessAWindow,
   createBusinessBWindow,
   createBusinessCWindow,
+  createVoiceTranslateWindow,
   MiniWindowType
 } from '../windows'
 import {
@@ -40,6 +41,9 @@ function registerWindowHandlers() {
         break
       case MiniWindowType.BUSINESS_C:
         createBusinessCWindow()
+        break
+      case MiniWindowType.VOICE_TRANSLATE:
+        createVoiceTranslateWindow()
         break
       default:
         console.warn(`Unknown mini window type: ${type}`)
@@ -76,6 +80,16 @@ function registerWindowHandlers() {
       } else {
         win.maximize()
       }
+    }
+  })
+
+  // 移动窗口（相对位移）
+  ipcMain.on(IPC_CHANNELS.WINDOW.MOVE_BY, (event, { deltaX, deltaY }) => {
+    const webContents = event.sender
+    const win = require('electron').BrowserWindow.fromWebContents(webContents)
+    if (win) {
+      const [x, y] = win.getPosition()
+      win.setPosition(x + deltaX, y + deltaY)
     }
   })
 }

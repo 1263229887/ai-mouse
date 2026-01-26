@@ -33,6 +33,12 @@ const routes = [
         component: () => import('@/views/Version/index.vue')
       }
     ]
+  },
+  // 小窗口路由（无菜单栏）
+  {
+    path: '/mini/voice-translate',
+    name: 'MiniVoiceTranslate',
+    component: () => import('@/views/VoiceTranslate/index.vue')
   }
 ]
 
@@ -44,7 +50,7 @@ const router = createRouter({
 // 路由守卫：如果用户已进入过应用，访问根路由时自动跳转到首页
 router.beforeEach((to, from, next) => {
   const hasEnteredApp = localStorage.getItem('hasEnteredApp') === 'true'
-  
+
   // 如果已进入过应用，且访问的是初始授权页，跳转到首页
   if (hasEnteredApp && to.name === 'InitAuth') {
     next({ name: 'Home' })

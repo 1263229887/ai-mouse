@@ -3,3 +3,4 @@
  */
 
 export * from './voiceInput'
+export * from './voiceTranslate'
