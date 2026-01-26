@@ -34,6 +34,11 @@ const routes = [
     path: '/mini/voice-translate',
     name: 'MiniVoiceTranslate',
     component: () => import('@/views/VoiceTranslate/index.vue')
+  },
+  {
+    path: '/mini/voice-input',
+    name: 'MiniVoiceInput',
+    component: () => import('@/views/VoiceInput/index.vue')
   }
 ]
 

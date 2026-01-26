@@ -10,5 +10,6 @@ export {
   createBusinessAWindow,
   createBusinessBWindow,
   createBusinessCWindow,
-  createVoiceTranslateWindow
+  createVoiceTranslateWindow,
+  createVoiceInputWindow
 } from './miniWindow'

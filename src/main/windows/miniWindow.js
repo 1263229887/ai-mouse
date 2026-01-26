@@ -20,7 +20,9 @@ export const MiniWindowType = {
   // 业务类型3（预留）
   BUSINESS_C: 'mini-business-c',
   // 语音翻译
-  VOICE_TRANSLATE: 'mini-voice-translate'
+  VOICE_TRANSLATE: 'mini-voice-translate',
+  // 语音输入
+  VOICE_INPUT: 'mini-voice-input'
 }
 
 /**
@@ -150,6 +152,22 @@ export function createVoiceTranslateWindow(options = {}) {
     height: 420,
     minHeight: 200,
     maxHeight: 600,
+    ...options
+  })
+}
+
+/**
+ * 创建语音输入小圆球窗口
+ * @param {object} options - 额外配置
+ * @returns {BrowserWindow}
+ */
+export function createVoiceInputWindow(options = {}) {
+  return createMiniWindow(MiniWindowType.VOICE_INPUT, '/mini/voice-input', {
+    width: 80,
+    height: 80,
+    transparent: true, // 透明背景
+    hasShadow: false, // 移除窗口阴影
+    backgroundColor: '#00000000', // 完全透明背景色
     ...options
   })
 }

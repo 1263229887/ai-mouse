@@ -11,6 +11,7 @@ import {
   createBusinessBWindow,
   createBusinessCWindow,
   createVoiceTranslateWindow,
+  createVoiceInputWindow,
   MiniWindowType
 } from '../windows'
 import {
@@ -47,6 +48,9 @@ function registerWindowHandlers() {
         break
       case MiniWindowType.VOICE_TRANSLATE:
         createVoiceTranslateWindow()
+        break
+      case MiniWindowType.VOICE_INPUT:
+        createVoiceInputWindow()
         break
       default:
         console.warn(`Unknown mini window type: ${type}`)
@@ -279,7 +283,7 @@ function startRecording(deviceId, keyIndex, businessMode) {
   })
 
   // 检查业务是否已实现
-  const implementedBusiness = [BUSINESS_MODE.VOICE_TRANSLATE]
+  const implementedBusiness = [BUSINESS_MODE.VOICE_TRANSLATE, BUSINESS_MODE.VOICE_INPUT]
   if (!implementedBusiness.includes(businessMode)) {
     console.log('[Main] 业务未实现，跳过:', businessMode)
     return
@@ -321,8 +325,8 @@ function startRecording(deviceId, keyIndex, businessMode) {
       createVoiceTranslateWindow()
       break
     case BUSINESS_MODE.VOICE_INPUT:
-      console.log('[Main] 语音输入 - 待实现')
-      // TODO: 创建语音输入窗口
+      console.log('[Main] 创建语音输入小窗口')
+      createVoiceInputWindow()
       break
     case BUSINESS_MODE.AI_ASSISTANT:
       console.log('[Main] AI助手 - 待实现')
@@ -367,6 +371,12 @@ function stopRecording() {
     console.log('[Main] 通知语音翻译小窗口执行粘贴并关闭')
     // 发送关闭并粘贴的消息给小窗口
     windowManager.sendTo(MiniWindowType.VOICE_TRANSLATE, 'voice-translate:close-and-paste', {})
+  }
+
+  // 如果是语音输入，通知小窗口关闭
+  if (currentRecordingState.businessMode === BUSINESS_MODE.VOICE_INPUT) {
+    console.log('[Main] 通知语音输入小窗口关闭')
+    windowManager.sendTo(MiniWindowType.VOICE_INPUT, 'voice-input:close', {})
   }
 
   // 重置状态
@@ -509,6 +519,13 @@ function registerClipboardHandlers() {
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD.PASTE, async () => {
     return simulatePaste()
   })
+
+  // 删除指定数量字符（模拟退格键）
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD.DELETE_CHARS, async (event, count) => {
+    console.log('[Main] ====== 收到删除请求 ======')
+    console.log('[Main] 请求删除字符数:', count)
+    return simulateBackspace(count)
+  })
 }
 
 // ==================== 模拟粘贴操作 ====================
@@ -518,33 +535,115 @@ function registerClipboardHandlers() {
  * Windows: 使用 PowerShell SendKeys
  * macOS: 使用 AppleScript
  * Linux: 使用 xdotool
+ * @returns {Promise<boolean>}
  */
 function simulatePaste() {
-  const platform = process.platform
+  return new Promise((resolve) => {
+    const platform = process.platform
 
-  const handleExecResult = (error, stdout, stderr) => {
-    if (error) {
-      console.error('[Main] 粘贴执行失败:', error)
-      console.error('[Main] stderr:', stderr)
+    if (platform === 'win32') {
+      // Windows: 使用 PowerShell 的 SendKeys
+      const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
+      exec(
+        `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error('[Main] 粘贴执行失败:', error)
+            console.error('[Main] stderr:', stderr)
+          } else {
+            console.log('[Main] 粘贴执行成功')
+          }
+          resolve(true)
+        }
+      )
+    } else if (platform === 'darwin') {
+      // macOS: 使用 AppleScript 模拟 Command+V
+      const appleScript = `tell application "System Events" to keystroke "v" using command down`
+      exec(`osascript -e '${appleScript}'`, (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Main] 粘贴执行失败:', error)
+          console.error('[Main] stderr:', stderr)
+        } else {
+          console.log('[Main] 粘贴执行成功')
+        }
+        resolve(true)
+      })
     } else {
-      console.log('[Main] 粘贴执行成功')
+      // Linux: 使用 xdotool
+      exec('xdotool key ctrl+v', (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Main] 粘贴执行失败:', error)
+          console.error('[Main] stderr:', stderr)
+        } else {
+          console.log('[Main] 粘贴执行成功')
+        }
+        resolve(true)
+      })
     }
-  }
+  })
+}
 
-  if (platform === 'win32') {
-    // Windows: 使用 PowerShell 的 SendKeys
-    const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`, handleExecResult)
-  } else if (platform === 'darwin') {
-    // macOS: 使用 AppleScript 模拟 Command+V
-    const appleScript = `tell application "System Events" to keystroke "v" using command down`
-    exec(`osascript -e '${appleScript}'`, handleExecResult)
-  } else {
-    // Linux: 使用 xdotool
-    exec('xdotool key ctrl+v', handleExecResult)
-  }
+/**
+ * 跨平台模拟退格键删除字符
+ * @param {number} count - 要删除的字符数量
+ * @returns {Promise<boolean>}
+ */
+function simulateBackspace(count) {
+  return new Promise((resolve) => {
+    if (!count || count <= 0) {
+      console.log('[Main] 删除字符数无效:', count)
+      resolve(true)
+      return
+    }
 
-  return true
+    console.log('[Main] 开始执行退格，删除字符数:', count)
+    const platform = process.platform
+
+    if (platform === 'win32') {
+      // Windows: 使用 PowerShell 的 SendKeys
+      // 生成多个 {BS} 来确保正确执行
+      const bsKeys = '{BS}'.repeat(count)
+      const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${bsKeys}')`
+      console.log('[Main] PowerShell 命令:', psScript)
+
+      exec(
+        `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`,
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error('[Main] 退格执行失败:', error)
+            console.error('[Main] stderr:', stderr)
+          } else {
+            console.log('[Main] 退格执行成功, 删除字符数:', count)
+          }
+          resolve(true)
+        }
+      )
+    } else if (platform === 'darwin') {
+      // macOS: 使用 AppleScript 模拟退格键
+      const appleScript = `tell application "System Events" to key code 51 repeat ${count} times`
+      exec(`osascript -e '${appleScript}'`, (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Main] 退格执行失败:', error)
+          console.error('[Main] stderr:', stderr)
+        } else {
+          console.log('[Main] 退格执行成功, 删除字符数:', count)
+        }
+        resolve(true)
+      })
+    } else {
+      // Linux: 使用 xdotool
+      const keys = Array(count).fill('BackSpace').join(' ')
+      exec(`xdotool key ${keys}`, (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Main] 退格执行失败:', error)
+          console.error('[Main] stderr:', stderr)
+        } else {
+          console.log('[Main] 退格执行成功, 删除字符数:', count)
+        }
+        resolve(true)
+      })
+    }
+  })
 }
 
 /**

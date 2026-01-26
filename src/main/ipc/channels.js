@@ -109,7 +109,9 @@ export const IPC_CHANNELS = {
     // 写入文本到剪贴板
     WRITE_TEXT: 'clipboard:write-text',
     // 执行粘贴操作
-    PASTE: 'clipboard:paste'
+    PASTE: 'clipboard:paste',
+    // 删除指定数量字符（模拟退格键）
+    DELETE_CHARS: 'clipboard:delete-chars'
   },
 
   // ============ 加密相关 ============
