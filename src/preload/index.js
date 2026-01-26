@@ -7,7 +7,8 @@ import {
   themeApi,
   deviceApi,
   cryptoApi,
-  updaterApi
+  updaterApi,
+  clipboardApi
 } from './api'
 
 /**
@@ -31,7 +32,10 @@ const api = {
   crypto: cryptoApi,
 
   // 更新操作
-  updater: updaterApi
+  updater: updaterApi,
+
+  // 剪贴板操作
+  clipboard: clipboardApi
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

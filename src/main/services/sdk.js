@@ -23,17 +23,32 @@ let SDK_getDeviceVendorId = null
 let SDK_registerDeviceConnectedListener = null
 let SDK_registerDeviceDisconnectedListener = null
 let SDK_registerDeviceMessageListener = null
+let SDK_registerDeviceAudioDataListener = null
+let SDK_setVoiceKey = null
+let SDK_getVoiceKey = null
+let SDK_setDeviceMicrophoneEnable = null
+let SDK_getAudioEnable = null
 
 // 回调函数引用（防止被GC回收）
 let deviceConnectedCallback = null
 let deviceDisconnectedCallback = null
 let deviceMessageCallback = null
+let deviceAudioDataCallback = null
+
+// 原始JS回调函数引用（防止被GC回收）
+let jsCallbacks = {
+  onDeviceConnected: null,
+  onDeviceDisconnected: null,
+  onDeviceMessage: null,
+  onDeviceAudioData: null
+}
 
 // 事件监听器
 const listeners = {
   deviceConnected: [],
   deviceDisconnected: [],
-  deviceMessage: []
+  deviceMessage: [],
+  deviceAudioData: []
 }
 
 // 当前已连接设备状态缓存（用于页面刷新后恢复）
@@ -69,9 +84,28 @@ function getLibraryPath() {
  * @param {boolean} debug - 是否开启调试模式
  */
 export function initSDK(debug = false) {
+  // 如果已经初始化，先清理状态
   if (isInitialized) {
-    console.log('[SDK] Already initialized')
-    return true
+    console.log('[SDK] Already initialized, cleaning up first...')
+    try {
+      SDK_sdkClose()
+      console.log('[SDK] Previous SDK instance closed')
+    } catch (error) {
+      console.warn('[SDK] Failed to close previous SDK instance:', error)
+    }
+    // 重置状态
+    isInitialized = false
+    connectedDevices.clear()
+    deviceConnectedCallback = null
+    deviceDisconnectedCallback = null
+    deviceMessageCallback = null
+    deviceAudioDataCallback = null
+    jsCallbacks = {
+      onDeviceConnected: null,
+      onDeviceDisconnected: null,
+      onDeviceMessage: null,
+      onDeviceAudioData: null
+    }
   }
 
   try {
@@ -122,9 +156,39 @@ export function initSDK(debug = false) {
       koffi.pointer(OnDeviceMessageCallbackPro)
     ])
 
+    // 音频数据回调原型
+    const OnDeviceAudioDataCallbackPro = koffi.proto(
+      'void OnDeviceAudioDataCallback(const char* deviceId, unsigned char* data, int length)'
+    )
+    SDK_registerDeviceAudioDataListener = libm.func(
+      'registerDeviceAudioDataCallbackListener',
+      'void',
+      [koffi.pointer(OnDeviceAudioDataCallbackPro)]
+    )
+
+    // 语音键控制函数
+    SDK_setVoiceKey = libm.func('void setVoiceKey(int index)')
+    SDK_getVoiceKey = libm.func('int getVoiceKey(void)')
+
+    // 设备麦克风控制函数
+    SDK_setDeviceMicrophoneEnable = libm.func(
+      'bool setDeviceMicrophoneEnable(const char* deviceId, int enable)'
+    )
+    SDK_getAudioEnable = libm.func('bool getAudioEnable(const char* deviceId)')
+
     // 初始化 SDK
     SDK_sdkInit(debug)
+    // SDK_sdkInit(true)
     console.log('[SDK] SDK initialized')
+
+    // 禁用 AI 键默认的打开网址功能
+    // setVoiceKey(0) 禁用默认行为
+    try {
+      SDK_setVoiceKey(0)
+      console.log('[SDK] AI key default behavior disabled')
+    } catch (error) {
+      console.warn('[SDK] Failed to disable AI key default behavior:', error)
+    }
 
     // 注册回调
     registerCallbacks()
@@ -141,8 +205,10 @@ export function initSDK(debug = false) {
  * 注册设备回调
  */
 function registerCallbacks() {
-  // 设备连接回调
-  const onDeviceConnected = (deviceId, connectionMode) => {
+  console.log('[SDK] Starting callback registration...')
+
+  // 设备连接回调（保存引用防止GC）
+  jsCallbacks.onDeviceConnected = (deviceId, connectionMode) => {
     console.log('[SDK] Device connected:', deviceId, 'mode:', connectionMode)
 
     // 缓存设备状态
@@ -152,36 +218,53 @@ function registerCallbacks() {
       isOnline: false,
       serialNumber: '',
       version: '',
-      vendorId: null
+      vendorId: null,
+      // 音频使能状态
+      audioEnabled: null, // null: 未知, true: 可用, false: 不可用
+      audioAccess: null // null: 未知, 1: 有权限, 0: 无权限
     })
+
+    // 设备连接后再次禁用AI键默认行为（确保生效）
+    try {
+      SDK_setVoiceKey(0)
+      console.log('[SDK] AI key default behavior disabled on device connect')
+    } catch (error) {
+      console.warn('[SDK] Failed to disable AI key on device connect:', error)
+    }
 
     // 请求设备信息
     SDK_getDeviceActive(deviceId)
     SDK_getDeviceSN(deviceId)
     SDK_getDeviceVersion(deviceId)
+    // 查询音频使能状态
+    SDK_getAudioEnable(deviceId)
 
     // 通知监听器
     emitEvent('deviceConnected', { deviceId, connectionMode })
   }
 
-  // 设备断开回调
-  const onDeviceDisconnected = (deviceId, connectionMode) => {
+  // 设备断开回调（保存引用防止GC）
+  jsCallbacks.onDeviceDisconnected = (deviceId, connectionMode) => {
     console.log('[SDK] Device disconnected:', deviceId, 'mode:', connectionMode)
     // 移除设备缓存
     connectedDevices.delete(deviceId)
     emitEvent('deviceDisconnected', { deviceId, connectionMode })
   }
 
-  // 设备消息回调（包含设备信息）
-  const onDeviceMessage = (deviceId, data) => {
-    console.log('[SDK] Device message:', deviceId, 'data:', data)
+  // 设备消息回调（保存引用防止GC）- 包含按键事件
+  jsCallbacks.onDeviceMessage = (deviceId, data) => {
+    // 添加详细日志，帮助诊断按键事件
+    // console.log('[SDK] Device message received:', deviceId)
+    // console.log('[SDK] Raw data:', data)
 
     // 解析消息数据
     let messageData = null
     try {
       messageData = JSON.parse(data)
+      console.log('[SDK] Parsed message:', JSON.stringify(messageData))
     } catch {
       messageData = { raw: data }
+      console.log('[SDK] Failed to parse, using raw:', messageData)
     }
 
     // 更新设备缓存
@@ -197,26 +280,73 @@ function registerCallbacks() {
         case 'deviceVersion':
           device.version = messageData.version || ''
           break
+        case 'audioEnable':
+          // 更新音频使能状态
+          device.audioEnabled = messageData.enabled === 1
+          device.audioAccess = messageData.access === 1
+          console.log('[SDK] Audio enable status updated:', {
+            deviceId,
+            enabled: device.audioEnabled,
+            access: device.audioAccess
+          })
+          break
       }
     }
 
     emitEvent('deviceMessage', { deviceId, data: messageData })
   }
 
-  // 注册回调到 SDK
-  deviceConnectedCallback = koffi.register(onDeviceConnected, 'OnDeviceConnectedCallback *')
-  SDK_registerDeviceConnectedListener(deviceConnectedCallback)
+  // 音频数据回调（保存引用防止GC）
+  jsCallbacks.onDeviceAudioData = (deviceId, data, length) => {
+    // 将原始音频数据转换为 Buffer
+    let audioData = null
+    try {
+      audioData = koffi.decode(data, 'unsigned char', length)
+      // 转换为 Buffer
+      audioData = Buffer.from(audioData)
+    } catch (error) {
+      console.error('[SDK] Failed to decode audio data:', error)
+      return
+    }
 
+    try {
+      emitEvent('deviceAudioData', { deviceId, audioData, length })
+    } catch (error) {
+      console.error('[SDK] Failed to emit deviceAudioData event:', error)
+    }
+  }
+
+  // 注册回调到 SDK
+  console.log('[SDK] Registering device connected callback...')
+  deviceConnectedCallback = koffi.register(
+    jsCallbacks.onDeviceConnected,
+    'OnDeviceConnectedCallback *'
+  )
+  SDK_registerDeviceConnectedListener(deviceConnectedCallback)
+  console.log('[SDK] Device connected callback registered')
+
+  console.log('[SDK] Registering device disconnected callback...')
   deviceDisconnectedCallback = koffi.register(
-    onDeviceDisconnected,
+    jsCallbacks.onDeviceDisconnected,
     'OnDeviceDisconnectedCallback *'
   )
   SDK_registerDeviceDisconnectedListener(deviceDisconnectedCallback)
+  console.log('[SDK] Device disconnected callback registered')
 
-  deviceMessageCallback = koffi.register(onDeviceMessage, 'OnDeviceMessageCallback *')
+  console.log('[SDK] Registering device message callback...')
+  deviceMessageCallback = koffi.register(jsCallbacks.onDeviceMessage, 'OnDeviceMessageCallback *')
   SDK_registerDeviceMessageListener(deviceMessageCallback)
+  console.log('[SDK] Device message callback registered')
 
-  console.log('[SDK] Callbacks registered')
+  console.log('[SDK] Registering device audio data callback...')
+  deviceAudioDataCallback = koffi.register(
+    jsCallbacks.onDeviceAudioData,
+    'OnDeviceAudioDataCallback *'
+  )
+  SDK_registerDeviceAudioDataListener(deviceAudioDataCallback)
+  console.log('[SDK] Device audio data callback registered')
+
+  console.log('[SDK] All callbacks registered successfully')
 }
 
 /**
@@ -228,10 +358,57 @@ export function closeSDK() {
   try {
     SDK_sdkClose()
     console.log('[SDK] SDK closed')
-    isInitialized = false
   } catch (error) {
     console.error('[SDK] Failed to close:', error)
   }
+
+  // 清理状态
+  isInitialized = false
+  connectedDevices.clear()
+
+  // 清理回调引用
+  if (deviceConnectedCallback) {
+    try {
+      koffi.unregister(deviceConnectedCallback)
+    } catch {
+      /* ignore */
+    }
+    deviceConnectedCallback = null
+  }
+  if (deviceDisconnectedCallback) {
+    try {
+      koffi.unregister(deviceDisconnectedCallback)
+    } catch {
+      /* ignore */
+    }
+    deviceDisconnectedCallback = null
+  }
+  if (deviceMessageCallback) {
+    try {
+      koffi.unregister(deviceMessageCallback)
+    } catch {
+      /* ignore */
+    }
+    deviceMessageCallback = null
+  }
+  if (deviceAudioDataCallback) {
+    try {
+      koffi.unregister(deviceAudioDataCallback)
+    } catch {
+      /* ignore */
+    }
+    deviceAudioDataCallback = null
+  }
+
+  // 清理 JS 回调引用
+  jsCallbacks = {
+    onDeviceConnected: null,
+    onDeviceDisconnected: null,
+    onDeviceMessage: null,
+    onDeviceAudioData: null
+  }
+
+  console.log('[SDK] SDK resources cleaned up')
 }
 
 /**
@@ -376,4 +553,110 @@ export function updateDeviceVendorId(deviceId, vendorId) {
   if (device) {
     device.vendorId = vendorId
   }
+}
+
+/**
+ * 设置语音键配置（禁用/启用 AI 键默认行为）
+ * @param {number} index - 0: 禁用默认行为
+ */
+export function setVoiceKey(index) {
+  if (!isInitialized || !SDK_setVoiceKey) {
+    console.log('[SDK] setVoiceKey not available')
+    return false
+  }
+  try {
+    SDK_setVoiceKey(index)
+    console.log('[SDK] setVoiceKey:', index)
+    return true
+  } catch (error) {
+    console.error('[SDK] setVoiceKey error:', error)
+    return false
+  }
+}
+
+/**
+ * 获取语音键配置
+ * @returns {number|null}
+ */
+export function getVoiceKey() {
+  if (!isInitialized || !SDK_getVoiceKey) {
+    return null
+  }
+  try {
+    return SDK_getVoiceKey()
+  } catch (error) {
+    console.error('[SDK] getVoiceKey error:', error)
+    return null
+  }
+}
+
+/**
+ * 设置设备麦克风启用状态
+ * @param {string} deviceId - 设备ID
+ * @param {number} enable - 1: 启用, 0: 禁用
+ * @returns {boolean}
+ */
+export function setDeviceMicrophoneEnable(deviceId, enable) {
+  if (!isInitialized || !SDK_setDeviceMicrophoneEnable) {
+    console.log('[SDK] setDeviceMicrophoneEnable not available')
+    return false
+  }
+  try {
+    const result = SDK_setDeviceMicrophoneEnable(deviceId, enable)
+    console.log('[SDK] setDeviceMicrophoneEnable:', deviceId, enable, 'result:', result)
+    return result
+  } catch (error) {
+    console.error('[SDK] setDeviceMicrophoneEnable error:', error)
+    return false
+  }
+}
+
+/**
+ * 获取设备音频启用状态
+ * @param {string} deviceId - 设备ID
+ * @returns {boolean|null}
+ */
+export function getAudioEnable(deviceId) {
+  if (!isInitialized || !SDK_getAudioEnable) {
+    return null
+  }
+  try {
+    return SDK_getAudioEnable(deviceId)
+  } catch (error) {
+    console.error('[SDK] getAudioEnable error:', error)
+    return null
+  }
+}
+
+/**
+ * 检查设备音频是否可用（实时查询）
+ * 调用 SDK 查询并返回缓存的状态
+ * @param {string} deviceId - 设备ID
+ * @returns {{ enabled: boolean|null, access: boolean|null, available: boolean }}
+ */
+export function checkDeviceAudioStatus(deviceId) {
+  // 先触发查询更新状态
+  if (isInitialized && SDK_getAudioEnable) {
+    try {
+      SDK_getAudioEnable(deviceId)
+    } catch (error) {
+      console.error('[SDK] checkDeviceAudioStatus query error:', error)
+    }
+  }
+
+  // 返回缓存的状态
+  const device = connectedDevices.get(deviceId)
+  if (!device) {
+    return { enabled: null, access: null, available: false }
+  }
+
+  const result = {
+    enabled: device.audioEnabled,
+    access: device.audioAccess,
+    // 只有 enabled=true 且 access=true 才可用
+    available: device.audioEnabled === true && device.audioAccess === true
+  }
+
+  console.log('[SDK] checkDeviceAudioStatus:', deviceId, result)
+  return result
 }

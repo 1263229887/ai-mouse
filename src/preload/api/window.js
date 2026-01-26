@@ -23,9 +23,10 @@ export const windowApi = {
   createMini: (type) => ipcRenderer.invoke('window:create-mini', type),
 
   /**
-   * 关闭当前窗口
+   * 关闭窗口
+   * @param {string} [windowName] - 可选，指定窗口名称；不传则关闭当前窗口
    */
-  close: () => ipcRenderer.send('window:close'),
+  close: (windowName) => ipcRenderer.send('window:close', windowName),
 
   /**
    * 最小化当前窗口

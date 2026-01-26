@@ -84,12 +84,32 @@ export const IPC_CHANNELS = {
     DISCONNECTED: 'device:disconnected',
     // 设备消息（包含设备信息更新）
     MESSAGE: 'device:message',
+    // 设备按键事件
+    KEY_EVENT: 'device:key-event',
+    // 设备音频数据
+    AUDIO_DATA: 'device:audio-data',
     // 获取厂商ID
     GET_VENDOR_ID: 'device:get-vendor-id',
     // 获取设备信息
     GET_INFO: 'device:get-info',
     // 获取当前设备状态（用于刷新后恢复）
-    GET_CURRENT_STATE: 'device:get-current-state'
+    GET_CURRENT_STATE: 'device:get-current-state',
+    // 设置设备麦克风启用状态
+    SET_MIC_ENABLE: 'device:set-mic-enable',
+    // 获取设备音频启用状态
+    GET_AUDIO_ENABLE: 'device:get-audio-enable',
+    // 同步设备配置（录音源、按键映射）
+    SYNC_CONFIG: 'device:sync-config',
+    // 获取设备配置
+    GET_CONFIG: 'device:get-config'
+  },
+
+  // ============ 剪贴板相关 ============
+  CLIPBOARD: {
+    // 写入文本到剪贴板
+    WRITE_TEXT: 'clipboard:write-text',
+    // 执行粘贴操作
+    PASTE: 'clipboard:paste'
   },
 
   // ============ 加密相关 ============

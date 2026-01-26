@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 
 // 本地存储 key
 const AUTH_STORAGE_KEY = 'app-auth'
+const AUTHORIZED_DEVICE_KEY = 'authorized-device'
 
 /**
  * 授权状态 Store
@@ -23,6 +24,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 错误信息
   const errorMessage = ref('')
+
+  // 已授权的设备信息（用于比对，避免重复授权）
+  const authorizedDevice = ref(null)
 
   // 是否已授权（有token或者授权状态为成功）
   const isAuthorized = computed(() => !!accessToken.value || authStatus.value === 'success')
@@ -45,6 +49,13 @@ export const useAuthStore = defineStore('auth', () => {
           authStatus.value = 'success'
         }
       }
+
+      // 恢复已授权设备信息
+      const storedDevice = localStorage.getItem(AUTHORIZED_DEVICE_KEY)
+      if (storedDevice) {
+        authorizedDevice.value = JSON.parse(storedDevice)
+        console.log('[Auth] 恢复已授权设备信息:', authorizedDevice.value)
+      }
     } catch (error) {
       console.error('[Auth] 恢复授权信息失败:', error)
     }
@@ -64,6 +75,50 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('[Auth] 保存授权信息失败:', error)
     }
+  }
+
+  /**
+   * 保存已授权设备信息
+   * @param {object} deviceInfo - { serialNumber, version, vendorId }
+   */
+  function saveAuthorizedDevice(deviceInfo) {
+    try {
+      authorizedDevice.value = {
+        serialNumber: deviceInfo.serialNumber,
+        version: deviceInfo.version,
+        vendorId: deviceInfo.vendorId
+      }
+      localStorage.setItem(AUTHORIZED_DEVICE_KEY, JSON.stringify(authorizedDevice.value))
+      console.log('[Auth] 保存已授权设备信息:', authorizedDevice.value)
+    } catch (error) {
+      console.error('[Auth] 保存已授权设备信息失败:', error)
+    }
+  }
+
+  /**
+   * 检查设备是否已授权（比对设备信息）
+   * @param {object} deviceInfo - { serialNumber, version, vendorId }
+   * @returns {boolean} 是否已授权
+   */
+  function isDeviceAuthorized(deviceInfo) {
+    if (!authorizedDevice.value) return false
+
+    const { serialNumber, version, vendorId } = deviceInfo
+    const cached = authorizedDevice.value
+
+    // 三个值都必须完全匹配
+    const isMatch =
+      cached.serialNumber === serialNumber &&
+      cached.version === version &&
+      String(cached.vendorId) === String(vendorId)
+
+    console.log('[Auth] 设备授权比对:', {
+      cached,
+      current: { serialNumber, version, vendorId },
+      isMatch
+    })
+
+    return isMatch
   }
 
   /**
@@ -96,6 +151,15 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * 设置授权成功（用于缓存命中跳过授权接口）
+   */
+  function setAuthorizedFromCache() {
+    authStatus.value = 'success'
+    errorMessage.value = ''
+    console.log('[Auth] 从缓存恢复授权状态')
+  }
+
+  /**
    * 设置授权状态
    */
   function setAuthStatus(status, error = '') {
@@ -113,6 +177,16 @@ export const useAuthStore = defineStore('auth', () => {
     authStatus.value = 'idle'
     errorMessage.value = ''
     localStorage.removeItem(AUTH_STORAGE_KEY)
+    // 注意：不清除已授权设备信息，保留用于下次比对
+  }
+
+  /**
+   * 完全清除（包括已授权设备信息）
+   */
+  function clearAll() {
+    clearAuth()
+    authorizedDevice.value = null
+    localStorage.removeItem(AUTHORIZED_DEVICE_KEY)
   }
 
   // 初始化时恢复授权信息
@@ -125,6 +199,7 @@ export const useAuthStore = defineStore('auth', () => {
     userInfo,
     authStatus,
     errorMessage,
+    authorizedDevice,
 
     // 计算属性
     isAuthorized,
@@ -133,6 +208,10 @@ export const useAuthStore = defineStore('auth', () => {
     // 方法
     setAuth,
     setAuthStatus,
-    clearAuth
+    setAuthorizedFromCache,
+    saveAuthorizedDevice,
+    isDeviceAuthorized,
+    clearAuth,
+    clearAll
   }
 })

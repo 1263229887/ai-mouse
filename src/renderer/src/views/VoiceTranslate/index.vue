@@ -3,7 +3,7 @@
  * VoiceTranslate/index.vue - 语音翻译小窗口
  * 可移动、无最大化最小化、点击关闭停止录音
  */
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { getVoiceTranslateService } from '@/services'
 
 // 语音翻译服务实例
@@ -13,34 +13,34 @@ const voiceTranslateService = getVoiceTranslateService()
 const isRecording = ref(false)
 const recordingStatus = ref('准备中...')
 
-// 原文数据 - 按id存储
-const originalTexts = reactive({
-  online: '', // online临时文字（灰色）
-  offline: new Map() // offline确定文字（按id存储）
+// 粘贴状态
+const pasteStatus = ref('') // '', 'pasting', 'success', 'error'
+
+// 原文数据
+const originalTexts = ref({
+  offline: '', // offline确定文字（黑色）
+  online: '' // online临时文字（灰色）
 })
 
 // 译文数据 - 按id存储
-const translateTexts = reactive(new Map())
+const translateTexts = ref(new Map())
 
-// 计算原文显示内容
+// 计算原文显示内容（offline + online）
 const originalDisplay = computed(() => {
-  // 如果有offline文字，显示offline，否则显示online
-  if (originalTexts.offline.size > 0) {
-    // 按id排序拼接offline文字
-    const sortedTexts = Array.from(originalTexts.offline.entries())
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([, text]) => text)
-      .join('')
-    return { text: sortedTexts, isOnline: false }
+  const offline = originalTexts.value.offline
+  const online = originalTexts.value.online
+  return {
+    offlineText: offline,
+    onlineText: online,
+    hasContent: !!(offline || online)
   }
-  return { text: originalTexts.online, isOnline: true }
 })
 
 // 计算译文显示内容
 const translateDisplay = computed(() => {
-  if (translateTexts.size === 0) return ''
+  if (translateTexts.value.size === 0) return ''
   // 按id排序拼接译文
-  const sortedTexts = Array.from(translateTexts.entries())
+  const sortedTexts = Array.from(translateTexts.value.entries())
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([, text]) => text)
     .join('')
@@ -71,19 +71,16 @@ const handleMessage = (data) => {
   }
 
   if (mode === 'online') {
-    // online模式：直接拼接显示（临时文字）
-    originalTexts.online += text
+    // online模式：直接拼接显示（临时文字，灰色），没有id
+    originalTexts.value.online += text
   } else if (mode === 'offline') {
-    // offline模式：清空online，按id存储
-    originalTexts.online = '' // 清空online临时文字
-    if (id !== undefined) {
-      // 同id替换，不同id新增
-      originalTexts.offline.set(String(id), text)
-    }
+    // offline模式：将online内容加到offline，然后清空online
+    originalTexts.value.offline += originalTexts.value.online + text
+    originalTexts.value.online = '' // 清空online临时文字
   } else if (mode === 'translate') {
-    // translate模式：译文，同id替换，不同id拼接
+    // translate模式：译文，按id存储
     if (id !== undefined) {
-      translateTexts.set(String(id), text)
+      translateTexts.value.set(String(id), text)
     }
   }
 }
@@ -115,15 +112,36 @@ const handleStateChange = (state) => {
 onMounted(async () => {
   console.log('[语音翻译] 组件挂载，开始初始化...')
 
+  // 监听主进程发来的关闭并粘贴消息
+  window.electron?.ipcRenderer?.on('voice-translate:close-and-paste', () => {
+    console.log('[语音翻译] 收到关闭并粘贴消息')
+    handleClose()
+  })
+
   try {
     // 设置回调
     voiceTranslateService.onMessage = handleMessage
     voiceTranslateService.onStateChange = handleStateChange
     console.log('[语音翻译] 回调设置完成')
 
-    // 初始化服务（初始化录音器）
+    // 获取录音源配置
+    let recordingSource = 'computer'
+    try {
+      const stored = localStorage.getItem('device-settings')
+      if (stored) {
+        const data = JSON.parse(stored)
+        if (data.recordingSource) {
+          recordingSource = data.recordingSource
+        }
+      }
+    } catch (e) {
+      console.warn('[语音翻译] 获取录音源配置失败:', e)
+    }
+    console.log('[语音翻译] 录音源:', recordingSource)
+
+    // 初始化服务（根据录音源初始化录音器）
     console.log('[语音翻译] 开始初始化服务...')
-    voiceTranslateService.init()
+    voiceTranslateService.init(recordingSource)
     console.log('[语音翻译] 服务初始化完成')
 
     // 开始录音（连接 WebSocket + 开始录音）
@@ -141,42 +159,89 @@ onMounted(async () => {
   }
 })
 
-// 组件卸载时停止录音
+// 组件卸载时停止录音和清理监听器
 onUnmounted(() => {
   voiceTranslateService.stop()
+  // 移除 IPC 监听器
+  window.electron?.ipcRenderer?.removeAllListeners?.('voice-translate:close-and-paste')
 })
 
-// 关闭窗口
+// 关闭窗口并粘贴译文
 const handleClose = async () => {
   // 停止录音
   await voiceTranslateService.stop()
-  // 关闭窗口
-  window.api?.window?.close()
+
+  // 更新状态：停止录制
+  isRecording.value = false
+  recordingStatus.value = '停止录制'
+
+  // 获取译文并粘贴
+  const translation = translateDisplay.value
+  if (translation && translation !== '等待翻译结果...') {
+    console.log('[语音翻译] 准备粘贴译文:', translation)
+
+    try {
+      // 1. 写入剪贴板
+      await window.api?.clipboard?.writeText(translation)
+      console.log('[语音翻译] 已写入剪贴板')
+
+      // 2. 更新状态：执行粘贴译文中
+      pasteStatus.value = 'pasting'
+      recordingStatus.value = '执行粘贴译文中...'
+
+      // 3. 执行粘贴（主进程会模拟 Ctrl+V）
+      await window.api?.clipboard?.paste()
+      console.log('[语音翻译] 粘贴命令已执行')
+
+      // 4. 更新状态：粘贴成功
+      pasteStatus.value = 'success'
+      recordingStatus.value = '粘贴成功 ✓'
+
+      // 5. 延迟后关闭窗口
+      setTimeout(() => {
+        window.api?.window?.close()
+      }, 2000)
+    } catch (error) {
+      console.error('[语音翻译] 粘贴译文失败:', error)
+      pasteStatus.value = 'error'
+      recordingStatus.value = '粘贴失败'
+
+      setTimeout(() => {
+        window.api?.window?.close()
+      }, 1000)
+    }
+  } else {
+    // 没有译文，直接关闭
+    recordingStatus.value = '无译文'
+    setTimeout(() => {
+      window.api?.window?.close()
+    }, 300)
+  }
 }
 
 // ============ 窗口拖动功能 ============
 const isDragging = ref(false)
-const dragOffset = reactive({ x: 0, y: 0 })
+const dragOffset = ref({ x: 0, y: 0 })
 
 const handleMouseDown = (e) => {
   // 只有在标题栏区域才允许拖动
   if (e.target.closest('.drag-region')) {
     isDragging.value = true
-    dragOffset.x = e.screenX
-    dragOffset.y = e.screenY
+    dragOffset.value.x = e.screenX
+    dragOffset.value.y = e.screenY
   }
 }
 
 const handleMouseMove = (e) => {
   if (isDragging.value) {
-    const deltaX = e.screenX - dragOffset.x
-    const deltaY = e.screenY - dragOffset.y
+    const deltaX = e.screenX - dragOffset.value.x
+    const deltaY = e.screenY - dragOffset.value.y
 
     // 使用 Electron IPC 移动窗口
     window.api?.window?.moveBy?.(deltaX, deltaY)
 
-    dragOffset.x = e.screenX
-    dragOffset.y = e.screenY
+    dragOffset.value.x = e.screenX
+    dragOffset.value.y = e.screenY
   }
 }
 
@@ -205,23 +270,37 @@ const handleMouseUp = () => {
     <div class="content">
       <!-- 录音状态 -->
       <div class="recording-status">
-        <span class="status-dot" :class="{ active: isRecording }"></span>
+        <span
+          class="status-dot"
+          :class="{
+            active: isRecording,
+            pasting: pasteStatus === 'pasting',
+            success: pasteStatus === 'success',
+            error: pasteStatus === 'error'
+          }"
+        ></span>
         <span class="status-text">{{ recordingStatus }}</span>
       </div>
 
       <!-- 原文区域 -->
       <div class="text-section original-section">
         <div class="section-label">原文</div>
-        <div class="text-content" :class="{ 'is-online': originalDisplay.isOnline }">
-          {{ originalDisplay.text || '等待语音输入...' }}
+        <div class="text-content">
+          <template v-if="originalDisplay.hasContent">
+            <span class="offline-text">{{ originalDisplay.offlineText }}</span>
+            <span class="online-text">{{ originalDisplay.onlineText }}</span>
+          </template>
+          <template v-else>
+            <span class="placeholder-text">等待语音输入...</span>
+          </template>
         </div>
       </div>
 
-      <!-- 语言指示 -->
-      <div class="language-indicator">
-        <span>{{ sourceLanguage }}</span>
-        <span class="arrow">→</span>
-        <span>{{ targetLanguage }}</span>
+      <!-- 语言指示器（横线中间文字） -->
+      <div class="language-divider">
+        <span class="divider-line"></span>
+        <span class="divider-text">{{ sourceLanguage }} → {{ targetLanguage }}</span>
+        <span class="divider-line"></span>
       </div>
 
       <!-- 译文区域 -->
@@ -303,9 +382,9 @@ const handleMouseUp = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: clamp(0.75rem, 2vw, 1rem);
-  overflow-y: auto;
-  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 2.5vw, 1.25rem);
+  overflow: hidden;
+  min-height: 0;
 }
 
 // 录音状态
@@ -313,6 +392,8 @@ const handleMouseUp = () => {
   display: flex;
   align-items: center;
   gap: clamp(0.375rem, 1vw, 0.5rem);
+  flex-shrink: 0;
+  margin-bottom: clamp(0.375rem, 1vw, 0.5rem);
 }
 
 .status-dot {
@@ -325,6 +406,21 @@ const handleMouseUp = () => {
   &.active {
     background: var(--color-success);
     animation: pulse-dot 1.5s infinite;
+  }
+
+  &.pasting {
+    background: var(--color-warning);
+    animation: pulse-dot 0.8s infinite;
+  }
+
+  &.success {
+    background: var(--color-success);
+    animation: none;
+  }
+
+  &.error {
+    background: var(--color-danger);
+    animation: none;
   }
 }
 
@@ -344,30 +440,66 @@ const handleMouseUp = () => {
   transition: color 0.3s ease;
 }
 
-// 文本区域
+// 文本区域（原文和译文各占一半）
 .text-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: clamp(0.25rem, 0.5vw, 0.375rem);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .section-label {
-  font-size: clamp(0.75rem, 1.2vw, 0.8125rem);
+  font-size: clamp(0.7rem, 1.1vw, 0.75rem);
   color: var(--text-secondary);
   transition: color 0.3s ease;
+  flex-shrink: 0;
+  margin-bottom: clamp(0.2rem, 0.4vw, 0.25rem);
 }
 
 .text-content {
-  font-size: clamp(0.875rem, 1.5vw, 1rem);
-  line-height: 1.6;
+  flex: 1;
+  font-size: clamp(0.8rem, 1.3vw, 0.875rem);
+  line-height: 1.5;
   color: var(--text-primary);
   word-break: break-word;
   transition: color 0.3s ease;
+  overflow-y: auto;
 
-  // online临时文字显示为灰色
-  &.is-online {
-    color: var(--text-secondary);
+  // Element Plus 风格滚动条
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--text-placeholder);
+    border-radius: 3px;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+      background-color: var(--text-secondary);
+    }
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
+
+// 确定文字（黑色）
+.offline-text {
+  color: var(--text-primary);
+}
+
+// 临时文字（灰色）
+.online-text {
+  color: var(--text-secondary);
+}
+
+// 占位文字
+.placeholder-text {
+  color: var(--text-placeholder);
 }
 
 // 译文使用主题色
@@ -375,23 +507,26 @@ const handleMouseUp = () => {
   color: var(--color-primary);
 }
 
-// 语言指示
-.language-indicator {
+// 语言分隔线（横线中间文字）
+.language-divider {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: clamp(0.5rem, 1vw, 0.75rem);
-  padding: clamp(0.375rem, 1vw, 0.5rem) 0;
-  font-size: clamp(0.75rem, 1.2vw, 0.8125rem);
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border-color-light);
-  border-bottom: 1px solid var(--border-color-light);
-  transition:
-    color 0.3s ease,
-    border-color 0.3s ease;
+  padding: clamp(0.375rem, 0.8vw, 0.5rem) 0;
+  flex-shrink: 0;
 }
 
-.arrow {
-  color: var(--color-primary);
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-color-light);
+  transition: background 0.3s ease;
+}
+
+.divider-text {
+  font-size: clamp(0.7rem, 1.1vw, 0.75rem);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: color 0.3s ease;
 }
 </style>

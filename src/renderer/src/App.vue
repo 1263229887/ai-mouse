@@ -32,14 +32,14 @@ const handleMouseDown = (e) => {
 // 拖动中
 const handleMouseMove = (e) => {
   if (!isDragging.value) return
-  
+
   const newX = e.clientX - dragStart.value.x
   const newY = e.clientY - dragStart.value.y
-  
+
   // 限制在窗口范围内
   const maxX = window.innerWidth - 60
   const maxY = window.innerHeight - 60
-  
+
   position.value = {
     x: Math.max(0, Math.min(newX, maxX)),
     y: Math.max(0, Math.min(newY, maxY))
@@ -70,9 +70,10 @@ const handleThemeToggle = () => {
 <template>
   <div class="app-container">
     <router-view />
-    
-    <!-- 可拖动的主题切换浮动球 -->
+
+    <!-- 可拖动的主题切换浮动球---暂时先不要切换主题了--预留吧 -->
     <div
+      v-if="false"
       ref="floatBall"
       class="theme-float-ball"
       :class="{ dragging: isDragging }"

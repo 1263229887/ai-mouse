@@ -146,8 +146,10 @@ export function createBusinessCWindow(options = {}) {
  */
 export function createVoiceTranslateWindow(options = {}) {
   return createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
-    width: 420,
-    height: 520,
+    width: 380,
+    height: 420,
+    minHeight: 200,
+    maxHeight: 600,
     ...options
   })
 }

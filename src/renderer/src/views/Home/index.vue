@@ -78,6 +78,7 @@ function stopVendorIdPolling() {
 /**
  * 检查并执行设备授权
  * 当设备信息完整时自动调用授权接口
+ * 如果设备信息与已授权缓存完全匹配，则跳过授权接口调用
  */
 async function checkAndActivateDevice() {
   const { serialNumber, vendorId, version, isOnline } = deviceStore
@@ -94,6 +95,15 @@ async function checkAndActivateDevice() {
     return
   }
 
+  const deviceInfo = { serialNumber, vendorId, version }
+
+  // 检查是否与已授权设备信息匹配（跳过授权接口调用）
+  if (authStore.isDeviceAuthorized(deviceInfo)) {
+    console.log('[Auth] 设备信息匹配缓存，跳过授权接口调用')
+    authStore.setAuthorizedFromCache()
+    return
+  }
+
   console.log('[Auth] 设备信息完整，开始授权...')
   authStore.setAuthStatus('pending')
 
@@ -107,6 +117,9 @@ async function checkAndActivateDevice() {
 
     console.log('[Auth] 授权成功:', result)
     authStore.setAuth(result)
+
+    // 授权成功后，保存设备信息到缓存
+    authStore.saveAuthorizedDevice(deviceInfo)
   } catch (error) {
     console.error('[Auth] 授权失败:', error)
     authStore.setAuthStatus('failed', error.message)
@@ -171,7 +184,7 @@ async function initDeviceState() {
 }
 
 /**
- * 初始化设备监听
+ * 初始化设备监听（仅设备连接/断开/消息，按键事件由全局 keyEventService 处理）
  */
 function initDeviceListeners() {
   // 监听设备连接
@@ -182,7 +195,6 @@ function initDeviceListeners() {
       deviceId: data.deviceId,
       connectionMode: data.connectionMode
     })
-    // 注意：不在这里开始轮询，等待 deviceActive 确认设备已激活后再轮询
   })
 
   // 监听设备断开
@@ -215,7 +227,7 @@ function initDeviceListeners() {
           }
           break
         default:
-          // 其他消息类型（如 deviceKeyEvent）暂不处理
+          // 其他消息类型暂不处理
           break
       }
     }
@@ -232,8 +244,6 @@ onMounted(() => {
 onUnmounted(() => {
   // 停止轮询
   stopVendorIdPolling()
-  // 移除监听器
-  window.api?.device?.removeAllListeners()
 })
 </script>
 
@@ -251,9 +261,10 @@ onUnmounted(() => {
       <!-- 授权成功状态 -->
       <template v-if="authStore.isAuthorized">
         <span class="auth-status success">授权成功</span>
-        
+
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
 
@@ -265,6 +276,7 @@ onUnmounted(() => {
         <span class="auth-status pending">授权中...</span>
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
@@ -274,6 +286,7 @@ onUnmounted(() => {
         <span class="auth-status error">授权失败</span>
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
@@ -330,7 +343,11 @@ onUnmounted(() => {
 }
 
 .auth-status {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.875rem, 1.5vw, 1rem);
   font-weight: 500;
   margin-top: clamp(0.375rem, 0.8vw, 0.5rem);
@@ -358,7 +375,11 @@ onUnmounted(() => {
 }
 
 .info-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 1rem);
   font-weight: 400;
   color: var(--text-secondary);
@@ -372,7 +393,11 @@ onUnmounted(() => {
   border-radius: clamp(0.4rem, 0.8vw, 0.5rem);
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.3vw, 0.875rem);
   font-weight: 500;
   cursor: pointer;
@@ -404,7 +429,11 @@ onUnmounted(() => {
   }
 
   .loading-text {
-    font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:
+      'PingFang SC',
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
     color: var(--text-secondary);
     font-size: clamp(0.85rem, 1.5vw, 1rem);
     transition: color 0.3s ease;

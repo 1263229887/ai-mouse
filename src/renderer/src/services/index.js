@@ -4,3 +4,4 @@
 
 export * from './voiceInput'
 export * from './voiceTranslate'
+export * from './keyEventService'

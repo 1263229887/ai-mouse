@@ -1,10 +1,17 @@
 /**
  * 语音翻译服务
  * 整合录音器和 WebSocket，提供语音翻译功能
+ * 支持电脑录音和鼠标录音两种模式
  */
 
 import { VoiceRecorder } from '../voiceInput/recorder'
 import { VoiceTranslateWebSocket } from './websocket'
+
+// 录音来源常量
+const RECORDING_SOURCE = {
+  MOUSE: 'mouse',
+  COMPUTER: 'computer'
+}
 
 /**
  * 语音翻译服务类
@@ -17,6 +24,8 @@ export class VoiceTranslateService {
     this.isInitialized = false
     this.onMessage = null // 服务端消息回调
     this.onStateChange = null // 状态变化回调
+    this.recordingSource = RECORDING_SOURCE.COMPUTER // 默认电脑录音
+    this.audioDataHandler = null // 鼠标音频数据处理函数
     // 翻译配置 - 完整的默认参数
     this.translateOptions = {
       mode: '2pass',
@@ -35,30 +44,49 @@ export class VoiceTranslateService {
   }
 
   /**
-   * 初始化服务
+   * 设置录音来源
+   * @param {string} source - 'mouse' | 'computer'
    */
-  init() {
-    // 防止重复初始化
-    if (this.isInitialized && this.recorder) {
-      console.log('[VoiceTranslateService] 已初始化，跳过')
-      return
+  setRecordingSource(source) {
+    this.recordingSource = source
+  }
+
+  /**
+   * 初始化服务
+   * @param {string} source - 录音来源 'mouse' | 'computer'，可选
+   */
+  init(source) {
+    if (source) {
+      this.recordingSource = source
     }
 
-    console.log('[VoiceTranslateService] 开始初始化录音器...')
-
-    // 初始化录音器
-    this.recorder = new VoiceRecorder({
-      onAudioChunk: (chunk) => {
-        // 将音频数据发送到 WebSocket
-        if (this.websocket && this.websocket.isConnected()) {
-          this.websocket.sendAudio(chunk)
-        }
+    // 如果是电脑录音，初始化录音器
+    if (this.recordingSource === RECORDING_SOURCE.COMPUTER) {
+      // 防止重复初始化
+      if (this.isInitialized && this.recorder) {
+        console.log('[VoiceTranslateService] 已初始化，跳过')
+        return
       }
-    })
 
-    this.recorder.init()
+      console.log('[VoiceTranslateService] 开始初始化录音器（电脑录音）...')
+
+      // 初始化录音器
+      this.recorder = new VoiceRecorder({
+        onAudioChunk: (chunk) => {
+          // 将音频数据发送到 WebSocket
+          if (this.websocket && this.websocket.isConnected()) {
+            this.websocket.sendAudio(chunk)
+          }
+        }
+      })
+
+      this.recorder.init()
+    } else {
+      console.log('[VoiceTranslateService] 初始化（鼠标录音模式）...')
+    }
+
     this.isInitialized = true
-    console.log('[VoiceTranslateService] 初始化完成')
+    console.log('[VoiceTranslateService] 初始化完成，录音来源:', this.recordingSource)
   }
 
   /**
@@ -83,7 +111,7 @@ export class VoiceTranslateService {
     }
 
     // 确保已初始化
-    if (!this.isInitialized || !this.recorder) {
+    if (!this.isInitialized) {
       console.log('[VoiceTranslateService] 未初始化，先初始化...')
       this.init()
     }
@@ -118,10 +146,18 @@ export class VoiceTranslateService {
       await this.websocket.connect()
       console.log('[VoiceTranslateService] WebSocket 连接成功')
 
-      // 开始录音
-      console.log('[VoiceTranslateService] 开始录音...')
-      await this.recorder.start()
-      console.log('[VoiceTranslateService] 录音启动成功')
+      // 根据录音来源选择录音方式
+      if (this.recordingSource === RECORDING_SOURCE.COMPUTER) {
+        // 电脑录音
+        console.log('[VoiceTranslateService] 开始电脑录音...')
+        await this.recorder.start()
+        console.log('[VoiceTranslateService] 电脑录音启动成功')
+      } else {
+        // 鼠标录音 - 监听设备音频数据
+        console.log('[VoiceTranslateService] 开始鼠标录音...')
+        this.startMouseRecording()
+        console.log('[VoiceTranslateService] 鼠标录音监听已启动')
+      }
 
       this.isRunning = true
       if (this.onStateChange) this.onStateChange('recording')
@@ -135,6 +171,35 @@ export class VoiceTranslateService {
   }
 
   /**
+   * 开始监听鼠标录音（SDK 音频数据回调）
+   */
+  startMouseRecording() {
+    // 创建音频数据处理函数
+    this.audioDataHandler = (data) => {
+      const { audioData } = data
+      if (audioData && this.websocket && this.websocket.isConnected()) {
+        // 将音频数据发送到 WebSocket
+        this.websocket.sendAudio(audioData)
+      }
+    }
+
+    // 注册监听
+    window.api?.device?.onAudioData(this.audioDataHandler)
+    console.log('[VoiceTranslateService] 鼠标音频数据监听已注册')
+  }
+
+  /**
+   * 停止鼠标录音监听
+   */
+  stopMouseRecording() {
+    if (this.audioDataHandler) {
+      window.api?.device?.removeAudioDataListener()
+      this.audioDataHandler = null
+      console.log('[VoiceTranslateService] 鼠标音频数据监听已移除')
+    }
+  }
+
+  /**
    * 停止语音翻译
    */
   async stop() {
@@ -142,9 +207,15 @@ export class VoiceTranslateService {
       return
     }
 
-    // 停止录音
-    if (this.recorder) {
-      await this.recorder.stop()
+    // 根据录音来源停止录音
+    if (this.recordingSource === RECORDING_SOURCE.COMPUTER) {
+      // 停止电脑录音
+      if (this.recorder) {
+        await this.recorder.stop()
+      }
+    } else {
+      // 停止鼠标录音
+      this.stopMouseRecording()
     }
 
     // 发送停止信号并断开 WebSocket
@@ -174,6 +245,7 @@ export class VoiceTranslateService {
       this.recorder.destroy()
       this.recorder = null
     }
+    this.stopMouseRecording()
     this.isInitialized = false
   }
 
@@ -182,6 +254,13 @@ export class VoiceTranslateService {
    */
   getIsRunning() {
     return this.isRunning
+  }
+
+  /**
+   * 获取当前录音来源
+   */
+  getRecordingSource() {
+    return this.recordingSource
   }
 }
 

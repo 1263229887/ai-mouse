@@ -13,7 +13,12 @@ export {
   removeEventListener,
   isSDKInitialized,
   getCurrentDeviceState,
-  updateDeviceVendorId
+  updateDeviceVendorId,
+  setVoiceKey,
+  getVoiceKey,
+  setDeviceMicrophoneEnable,
+  getAudioEnable,
+  checkDeviceAudioStatus
 } from './sdk'
 export { generateOpenId, validateEncryptData } from './crypto'
 export {
