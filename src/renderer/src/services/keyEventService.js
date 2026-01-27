@@ -75,7 +75,7 @@ class KeyEventService {
     console.log('[KeyEventService] Auth status:', {
       isAuthorized: authStore.isAuthorized,
       authStatus: authStore.authStatus,
-      hasToken: !!authStore.accessToken
+      hasToken: !!authStore.token
     })
 
     if (!authStore.isAuthorized) {

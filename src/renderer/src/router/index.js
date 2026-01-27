@@ -1,11 +1,21 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
-  // 带菜单栏的页面
+  // 授权页（独立页面，无菜单栏）
   {
     path: '/',
+    redirect: '/auth'
+  },
+  {
+    path: '/auth',
+    name: 'Auth',
+    component: () => import('@/views/Auth/index.vue')
+  },
+  // 带菜单栏的页面
+  {
+    path: '/main',
     component: () => import('@/layouts/MainLayout.vue'),
-    redirect: '/auth', // 默认重定向到设备授权页
+    redirect: '/main/settings',
     children: [
       {
         path: 'home',
@@ -14,8 +24,9 @@ const routes = [
       },
       {
         path: 'auth',
-        name: 'Auth',
-        component: () => import('@/views/Auth/index.vue')
+        name: 'MainAuth',
+        component: () => import('@/views/Auth/index.vue'),
+        meta: { inMenu: true }
       },
       {
         path: 'settings',

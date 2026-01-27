@@ -6,10 +6,10 @@ const route = useRoute()
 const router = useRouter()
 
 const menuItems = [
-  { name: '首页', path: '/home' },
-  { name: '设备授权', path: '/auth' },
-  { name: '设备设置', path: '/settings' },
-  { name: '版本检测', path: '/version' }
+  { name: '首页', path: '/main/home' },
+  { name: '设备授权', path: '/main/auth' },
+  { name: '设备设置', path: '/main/settings' },
+  { name: '版本检测', path: '/main/version' }
 ]
 
 const currentPath = computed(() => route.path)
@@ -36,9 +36,10 @@ function isActive(path) {
         {{ item.name }}
       </span>
     </div>
-    <div class="right-section">
+    <!-- 临时隐藏简体中文切换 -->
+    <!-- <div class="right-section">
       <span class="language">简体中文</span>
-    </div>
+    </div> -->
   </nav>
 </template>
 
@@ -61,7 +62,11 @@ function isActive(path) {
 }
 
 .menu-item {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-weight: 500;
   font-size: clamp(0.7rem, 1.5vw, 0.9rem); // 响应式字体大小
   color: var(--text-primary); // 使用主题颜色
@@ -87,7 +92,11 @@ function isActive(path) {
 }
 
 .language {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-weight: 500;
   font-size: clamp(0.7rem, 1.5vw, 0.9rem); // 响应式字体大小
   color: var(--text-primary); // 使用主题颜色

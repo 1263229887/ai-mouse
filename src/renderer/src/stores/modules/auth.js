@@ -3,18 +3,20 @@ import { ref, computed } from 'vue'
 
 // 本地存储 key
 const AUTH_STORAGE_KEY = 'app-auth'
-const AUTHORIZED_DEVICE_KEY = 'authorized-device'
 
 /**
  * 授权状态 Store
- * 管理设备授权状态和 Token
+ * 管理设备授权状态和 Token（授权即登录）
  */
 export const useAuthStore = defineStore('auth', () => {
   // 访问令牌
-  const accessToken = ref('')
+  const token = ref('')
 
   // 刷新令牌
   const refreshToken = ref('')
+
+  // 令牌过期时间
+  const expiresAt = ref(null)
 
   // 用户信息
   const userInfo = ref(null)
@@ -25,11 +27,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 错误信息
   const errorMessage = ref('')
 
-  // 已授权的设备信息（用于比对，避免重复授权）
-  const authorizedDevice = ref(null)
-
   // 是否已授权（有token或者授权状态为成功）
-  const isAuthorized = computed(() => !!accessToken.value || authStatus.value === 'success')
+  const isAuthorized = computed(() => !!token.value || authStatus.value === 'success')
 
   // 是否正在授权中
   const isPending = computed(() => authStatus.value === 'pending')
@@ -42,19 +41,13 @@ export const useAuthStore = defineStore('auth', () => {
       const stored = localStorage.getItem(AUTH_STORAGE_KEY)
       if (stored) {
         const data = JSON.parse(stored)
-        if (data.accessToken) accessToken.value = data.accessToken
+        if (data.token) token.value = data.token
         if (data.refreshToken) refreshToken.value = data.refreshToken
+        if (data.expiresAt) expiresAt.value = data.expiresAt
         if (data.userInfo) userInfo.value = data.userInfo
-        if (data.accessToken) {
+        if (data.token) {
           authStatus.value = 'success'
         }
-      }
-
-      // 恢复已授权设备信息
-      const storedDevice = localStorage.getItem(AUTHORIZED_DEVICE_KEY)
-      if (storedDevice) {
-        authorizedDevice.value = JSON.parse(storedDevice)
-        console.log('[Auth] 恢复已授权设备信息:', authorizedDevice.value)
       }
     } catch (error) {
       console.error('[Auth] 恢复授权信息失败:', error)
@@ -67,8 +60,9 @@ export const useAuthStore = defineStore('auth', () => {
   function saveAuth() {
     try {
       const data = {
-        accessToken: accessToken.value,
+        token: token.value,
         refreshToken: refreshToken.value,
+        expiresAt: expiresAt.value,
         userInfo: userInfo.value
       }
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data))
@@ -78,59 +72,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 保存已授权设备信息
-   * @param {object} deviceInfo - { serialNumber, version, vendorId }
-   */
-  function saveAuthorizedDevice(deviceInfo) {
-    try {
-      authorizedDevice.value = {
-        serialNumber: deviceInfo.serialNumber,
-        version: deviceInfo.version,
-        vendorId: deviceInfo.vendorId
-      }
-      localStorage.setItem(AUTHORIZED_DEVICE_KEY, JSON.stringify(authorizedDevice.value))
-      console.log('[Auth] 保存已授权设备信息:', authorizedDevice.value)
-    } catch (error) {
-      console.error('[Auth] 保存已授权设备信息失败:', error)
-    }
-  }
-
-  /**
-   * 检查设备是否已授权（比对设备信息）
-   * @param {object} deviceInfo - { serialNumber, version, vendorId }
-   * @returns {boolean} 是否已授权
-   */
-  function isDeviceAuthorized(deviceInfo) {
-    if (!authorizedDevice.value) return false
-
-    const { serialNumber, version, vendorId } = deviceInfo
-    const cached = authorizedDevice.value
-
-    // 三个值都必须完全匹配
-    const isMatch =
-      cached.serialNumber === serialNumber &&
-      cached.version === version &&
-      String(cached.vendorId) === String(vendorId)
-
-    console.log('[Auth] 设备授权比对:', {
-      cached,
-      current: { serialNumber, version, vendorId },
-      isMatch
-    })
-
-    return isMatch
-  }
-
-  /**
    * 设置授权信息
-   * 适配 API 返回的数据结构
+   * 适配 API 返回的数据结构：
+   * {
+   *   token: "xxx",
+   *   refreshToken: { value: "xxx", expiration: xxx },
+   *   expiresAt: xxx,
+   *   userInfo: {...}
+   * }
    */
   function setAuth(data) {
     // 访问令牌
     if (data.token) {
-      accessToken.value = data.token
+      token.value = data.token
     }
-    // 刷新令牌
+
+    // 刷新令牌（API 返回的是对象 { value, expiration }）
     if (data.refreshToken) {
       if (typeof data.refreshToken === 'object') {
         refreshToken.value = data.refreshToken.value || ''
@@ -138,6 +95,12 @@ export const useAuthStore = defineStore('auth', () => {
         refreshToken.value = data.refreshToken
       }
     }
+
+    // 令牌过期时间
+    if (data.expiresAt) {
+      expiresAt.value = data.expiresAt
+    }
+
     // 用户信息
     if (data.userInfo) {
       userInfo.value = data.userInfo
@@ -148,15 +111,13 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 保存到本地存储
     saveAuth()
-  }
 
-  /**
-   * 设置授权成功（用于缓存命中跳过授权接口）
-   */
-  function setAuthorizedFromCache() {
-    authStatus.value = 'success'
-    errorMessage.value = ''
-    console.log('[Auth] 从缓存恢复授权状态')
+    console.log('[Auth] 授权信息已保存:', {
+      token: token.value ? '***' : '',
+      refreshToken: refreshToken.value ? '***' : '',
+      expiresAt: expiresAt.value,
+      userInfo: userInfo.value
+    })
   }
 
   /**
@@ -171,22 +132,13 @@ export const useAuthStore = defineStore('auth', () => {
    * 清除授权信息
    */
   function clearAuth() {
-    accessToken.value = ''
+    token.value = ''
     refreshToken.value = ''
+    expiresAt.value = null
     userInfo.value = null
     authStatus.value = 'idle'
     errorMessage.value = ''
     localStorage.removeItem(AUTH_STORAGE_KEY)
-    // 注意：不清除已授权设备信息，保留用于下次比对
-  }
-
-  /**
-   * 完全清除（包括已授权设备信息）
-   */
-  function clearAll() {
-    clearAuth()
-    authorizedDevice.value = null
-    localStorage.removeItem(AUTHORIZED_DEVICE_KEY)
   }
 
   // 初始化时恢复授权信息
@@ -194,12 +146,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     // 状态
-    accessToken,
+    token,
     refreshToken,
+    expiresAt,
     userInfo,
     authStatus,
     errorMessage,
-    authorizedDevice,
 
     // 计算属性
     isAuthorized,
@@ -208,10 +160,6 @@ export const useAuthStore = defineStore('auth', () => {
     // 方法
     setAuth,
     setAuthStatus,
-    setAuthorizedFromCache,
-    saveAuthorizedDevice,
-    isDeviceAuthorized,
-    clearAuth,
-    clearAll
+    clearAuth
   }
 })

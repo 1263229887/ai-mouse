@@ -1,9 +1,9 @@
 /**
  * 设备相关 API 接口
- * 包含设备授权等特殊接口
+ * 包含设备授权、语言列表等接口
  */
 
-import { createRequest } from '@/utils/request'
+import { createRequest, request } from '@/utils/request'
 
 /**
  * 授权接口专用请求实例
@@ -59,5 +59,19 @@ export async function activateDevice(params) {
   const response = await authRequest.get(url)
   console.log('[DeviceAPI] 授权响应:', response.data)
 
+  return response.data
+}
+
+// ============ 语言列表 API ============
+
+/**
+ * 获取所有语言列表
+ * @param {string} version - 版本类型 (lang_pro=高级版)
+ * @returns {Promise} 返回语言列表
+ */
+export async function getAllLanguageList(version = 'lang_pro') {
+  const response = await request.get('/ai-api/sysMultiLanguage/list', {
+    params: { version }
+  })
   return response.data
 }

@@ -105,7 +105,79 @@ export const useDeviceStore = defineStore('device', () => {
   // ============ 录音来源配置 ============
   const recordingSource = ref(RECORDING_SOURCE.COMPUTER) // 默认电脑录音
 
+  // ============ 语言配置 ============
+  // 默认 isoCode 常量（用于校验恢复数据）
+  const DEFAULT_VOICE_INPUT_ISO = 'ZH'
+  const DEFAULT_TRANSLATE_SOURCE_ISO = 'ZH'
+  const DEFAULT_TRANSLATE_TARGET_ISO = 'EN'
+
+  // 语音输入的源语言配置对象
+  const voiceInputSource = ref({
+    isoCode: DEFAULT_VOICE_INPUT_ISO, // 语言代码
+    areaId: '', // 地区ID（从接口获取）
+    chinese: '' // 语种名（从接口获取）
+  })
+
+  // 语音翻译的源语言配置对象
+  const translateSource = ref({
+    isoCode: DEFAULT_TRANSLATE_SOURCE_ISO,
+    areaId: '',
+    chinese: ''
+  })
+
+  // 语音翻译的目标语言配置对象
+  const translateTarget = ref({
+    isoCode: DEFAULT_TRANSLATE_TARGET_ISO,
+    areaId: '',
+    chinese: ''
+  })
+
   // ============ 本地存储持久化 ============
+  /**
+   * 迁移旧缓存数据（清除错误的语言配置）
+   */
+  function migrateOldCache() {
+    try {
+      const stored = localStorage.getItem(DEVICE_SETTINGS_KEY)
+      if (stored) {
+        const data = JSON.parse(stored)
+        let needsMigration = false
+
+        // 检查是否有旧格式数据或错误的 isoCode
+        if (
+          data.voiceInputSourceIsoCode ||
+          data.translateSourceIsoCode ||
+          data.translateTargetIsoCode
+        ) {
+          needsMigration = true
+        }
+        // 检查新格式中的 isoCode 是否正确
+        if (data.voiceInputSource?.isoCode && data.voiceInputSource.isoCode !== 'ZH') {
+          needsMigration = true
+        }
+        if (data.translateSource?.isoCode && data.translateSource.isoCode !== 'ZH') {
+          needsMigration = true
+        }
+        if (data.translateTarget?.isoCode && data.translateTarget.isoCode !== 'EN') {
+          needsMigration = true
+        }
+
+        if (needsMigration) {
+          console.log('[Device] 检测到旧缓存数据，清除语言配置...')
+          // 保留按键映射和录音来源，清除语言配置
+          const newData = {
+            keyMappings: data.keyMappings,
+            recordingSource: data.recordingSource
+          }
+          localStorage.setItem(DEVICE_SETTINGS_KEY, JSON.stringify(newData))
+          console.log('[Device] 缓存迁移完成')
+        }
+      }
+    } catch (error) {
+      console.error('[Device] 缓存迁移失败:', error)
+    }
+  }
+
   /**
    * 从本地存储恢复设置
    */
@@ -131,14 +203,39 @@ export const useDeviceStore = defineStore('device', () => {
         if (data.recordingSource) {
           recordingSource.value = data.recordingSource
         }
+        // 恢复语言配置（仅恢复 areaId 和 chinese，isoCode 保持默认值，防止旧缓存错误值覆盖）
+        if (data.voiceInputSource) {
+          if (data.voiceInputSource.areaId)
+            voiceInputSource.value.areaId = data.voiceInputSource.areaId
+          if (data.voiceInputSource.chinese)
+            voiceInputSource.value.chinese = data.voiceInputSource.chinese
+        }
+        if (data.translateSource) {
+          if (data.translateSource.areaId)
+            translateSource.value.areaId = data.translateSource.areaId
+          if (data.translateSource.chinese)
+            translateSource.value.chinese = data.translateSource.chinese
+        }
+        if (data.translateTarget) {
+          if (data.translateTarget.areaId)
+            translateTarget.value.areaId = data.translateTarget.areaId
+          if (data.translateTarget.chinese)
+            translateTarget.value.chinese = data.translateTarget.chinese
+        }
         console.log('[Device] 恢复设置成功:', {
           keyMappings: { ...keyMappings.value },
-          recordingSource: recordingSource.value
+          recordingSource: recordingSource.value,
+          voiceInputSource: { ...voiceInputSource.value },
+          translateSource: { ...translateSource.value },
+          translateTarget: { ...translateTarget.value }
         })
       } else {
         console.log('[Device] 使用默认设置:', {
           keyMappings: { ...keyMappings.value },
-          recordingSource: recordingSource.value
+          recordingSource: recordingSource.value,
+          voiceInputSource: { ...voiceInputSource.value },
+          translateSource: { ...translateSource.value },
+          translateTarget: { ...translateTarget.value }
         })
       }
     } catch (error) {
@@ -153,7 +250,10 @@ export const useDeviceStore = defineStore('device', () => {
     try {
       const data = {
         keyMappings: { ...keyMappings.value },
-        recordingSource: recordingSource.value
+        recordingSource: recordingSource.value,
+        voiceInputSource: { ...voiceInputSource.value },
+        translateSource: { ...translateSource.value },
+        translateTarget: { ...translateTarget.value }
       }
       localStorage.setItem(DEVICE_SETTINGS_KEY, JSON.stringify(data))
       console.log('[Device] 保存设置成功:', data)
@@ -183,14 +283,21 @@ export const useDeviceStore = defineStore('device', () => {
 
   // 监听设置变化，自动保存
   watch(
-    () => ({ ...keyMappings.value, recordingSource: recordingSource.value }),
+    () => ({
+      ...keyMappings.value,
+      recordingSource: recordingSource.value,
+      voiceInputSource: { ...voiceInputSource.value },
+      translateSource: { ...translateSource.value },
+      translateTarget: { ...translateTarget.value }
+    }),
     () => {
       saveSettings()
     },
     { deep: true }
   )
 
-  // 初始化时恢复设置
+  // 初始化时先迁移旧缓存，再恢复设置
+  migrateOldCache()
   restoreSettings()
 
   // 初始化完成后同步配置到主进程
@@ -323,6 +430,53 @@ export const useDeviceStore = defineStore('device', () => {
    */
   const isMouseRecording = computed(() => recordingSource.value === RECORDING_SOURCE.MOUSE)
 
+  // ============ 语言配置方法 ============
+  /**
+   * 设置语音输入的源语言
+   * @param {string} isoCode - 语言 ISO 代码
+   * @param {string} areaId - 地区 ID
+   * @param {string} chinese - 语种名（中文）
+   */
+  function setVoiceInputSource(isoCode, areaId = '', chinese = '') {
+    console.log('[Device] setVoiceInputSource:', { isoCode, areaId, chinese })
+    voiceInputSource.value = { isoCode, areaId, chinese }
+  }
+
+  /**
+   * 设置语音翻译的源语言
+   * @param {string} isoCode - 语言 ISO 代码
+   * @param {string} areaId - 地区 ID
+   * @param {string} chinese - 语种名（中文）
+   */
+  function setTranslateSource(isoCode, areaId = '', chinese = '') {
+    console.log('[Device] setTranslateSource:', { isoCode, areaId, chinese })
+    translateSource.value = { isoCode, areaId, chinese }
+  }
+
+  /**
+   * 设置语音翻译的目标语言
+   * @param {string} isoCode - 语言 ISO 代码
+   * @param {string} areaId - 地区 ID
+   * @param {string} chinese - 语种名（中文）
+   */
+  function setTranslateTarget(isoCode, areaId = '', chinese = '') {
+    console.log('[Device] setTranslateTarget:', { isoCode, areaId, chinese })
+    translateTarget.value = { isoCode, areaId, chinese }
+  }
+
+  /**
+   * 交换语音翻译的源语言和目标语言
+   */
+  function swapTranslateLanguages() {
+    const temp = { ...translateSource.value }
+    translateSource.value = { ...translateTarget.value }
+    translateTarget.value = temp
+    console.log('[Device] swapTranslateLanguages:', {
+      source: translateSource.value,
+      target: translateTarget.value
+    })
+  }
+
   return {
     // ============ 设备基本信息 ============
     // 状态
@@ -359,6 +513,15 @@ export const useDeviceStore = defineStore('device', () => {
     recordingSource,
     setRecordingSource,
     getRecordingSource,
-    isMouseRecording
+    isMouseRecording,
+
+    // ============ 语言配置 ============
+    voiceInputSource,
+    translateSource,
+    translateTarget,
+    setVoiceInputSource,
+    setTranslateSource,
+    setTranslateTarget,
+    swapTranslateLanguages
   }
 })

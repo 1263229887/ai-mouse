@@ -5,16 +5,38 @@
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { getVoiceTranslateService } from '@/services'
+import { useDeviceStore } from '@/stores'
 
 // 语音翻译服务实例
 const voiceTranslateService = getVoiceTranslateService()
 
-// 录音状态
+// 设备 Store
+const deviceStore = useDeviceStore()
+
+// 录音状态（原文区域顶部显示）
 const isRecording = ref(false)
 const recordingStatus = ref('准备中...')
 
-// 粘贴状态
-const pasteStatus = ref('') // '', 'pasting', 'success', 'error'
+// 翻译/粘贴状态（译文区域底部显示）
+const translateStatus = ref('waiting') // 'waiting' | 'translating' | 'paste_waiting' | 'pasting' | 'success' | 'error'
+const translateStatusText = computed(() => {
+  switch (translateStatus.value) {
+    case 'waiting':
+      return '等待翻译中...'
+    case 'translating':
+      return '翻译中...'
+    case 'paste_waiting':
+      return '等待粘贴...'
+    case 'pasting':
+      return '粘贴中...'
+    case 'success':
+      return '粘贴完成'
+    case 'error':
+      return '粘贴失败'
+    default:
+      return ''
+  }
+})
 
 // 原文数据
 const originalTexts = ref({
@@ -47,9 +69,13 @@ const translateDisplay = computed(() => {
   return sortedTexts
 })
 
-// 翻译语言配置
-const sourceLanguage = ref('中文')
-const targetLanguage = ref('英语')
+// 翻译语言配置（从 store 读取）
+const sourceLanguage = computed(() => deviceStore.translateSource.chinese || '中文')
+const targetLanguage = computed(() => deviceStore.translateTarget.chinese || '英语')
+
+// 获取源语言和目标语言的isoCode（用于WebSocket连接）
+const sourceIsoCode = computed(() => deviceStore.translateSource.isoCode || 'ZH')
+const targetIsoCode = computed(() => deviceStore.translateTarget.isoCode || 'EN')
 
 // 处理WebSocket消息
 const handleMessage = (data) => {
@@ -81,6 +107,10 @@ const handleMessage = (data) => {
     // translate模式：译文，按id存储
     if (id !== undefined) {
       translateTexts.value.set(String(id), text)
+      // 收到译文时更新状态为“翻译中”
+      if (translateStatus.value === 'waiting') {
+        translateStatus.value = 'translating'
+      }
     }
   }
 }
@@ -149,8 +179,8 @@ onMounted(async () => {
     await voiceTranslateService.start({
       // 临时使用生产环境地址测试
       url: 'ws://chat.danaai.net/asr/speechTranslate',
-      sourceLanguage: 'ZH',
-      targetLanguage: 'EN'
+      sourceLanguage: sourceIsoCode.value,
+      targetLanguage: targetIsoCode.value
     })
     console.log('[语音翻译] 启动成功')
   } catch (error) {
@@ -185,25 +215,30 @@ const handleClose = async () => {
       await window.api?.clipboard?.writeText(translation)
       console.log('[语音翻译] 已写入剪贴板')
 
-      // 2. 更新状态：执行粘贴译文中
-      pasteStatus.value = 'pasting'
-      recordingStatus.value = '执行粘贴译文中...'
+      // 2. 更新状态：等待粘贴
+      translateStatus.value = 'paste_waiting'
 
-      // 3. 执行粘贴（主进程会模拟 Ctrl+V）
+      // 3. 等待 1 秒后执行粘贴
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      // 4. 更新状态：粘贴中
+      translateStatus.value = 'pasting'
+
+      // 5. 执行粘贴（主进程会模拟 Ctrl+V）
       await window.api?.clipboard?.paste()
       console.log('[语音翻译] 粘贴命令已执行')
 
-      // 4. 更新状态：粘贴成功
-      pasteStatus.value = 'success'
-      recordingStatus.value = '粘贴成功 ✓'
+      // 6. 更新状态：粘贴成功
+      translateStatus.value = 'success'
+      recordingStatus.value = '已完成'
 
-      // 5. 延迟后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
+      // 7. 延迟后关闭窗口
       setTimeout(() => {
         window.api?.window?.close()
-      }, 2000)
+      }, 1500)
     } catch (error) {
       console.error('[语音翻译] 粘贴译文失败:', error)
-      pasteStatus.value = 'error'
+      translateStatus.value = 'error'
       recordingStatus.value = '粘贴失败'
 
       setTimeout(() => {
@@ -268,17 +303,9 @@ const handleMouseUp = () => {
 
     <!-- 内容区域 -->
     <div class="content">
-      <!-- 录音状态 -->
+      <!-- 录音状态（原文区域顶部） -->
       <div class="recording-status">
-        <span
-          class="status-dot"
-          :class="{
-            active: isRecording,
-            pasting: pasteStatus === 'pasting',
-            success: pasteStatus === 'success',
-            error: pasteStatus === 'error'
-          }"
-        ></span>
+        <span class="status-dot" :class="{ active: isRecording }"></span>
         <span class="status-text">{{ recordingStatus }}</span>
       </div>
 
@@ -308,6 +335,21 @@ const handleMouseUp = () => {
         <div class="section-label">译文</div>
         <div class="text-content translate-text">
           {{ translateDisplay || '等待翻译结果...' }}
+        </div>
+        <!-- 翻译/粘贴状态（译文区域底部） -->
+        <div class="translate-status" :class="{ success: translateStatus === 'success' }">
+          <span v-if="translateStatus === 'success'" class="success-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 12l5 5L20 7"
+                stroke="#34C759"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="translate-status-text">{{ translateStatusText }}</span>
         </div>
       </div>
     </div>
@@ -407,21 +449,6 @@ const handleMouseUp = () => {
     background: var(--color-success);
     animation: pulse-dot 1.5s infinite;
   }
-
-  &.pasting {
-    background: var(--color-warning);
-    animation: pulse-dot 0.8s infinite;
-  }
-
-  &.success {
-    background: var(--color-success);
-    animation: none;
-  }
-
-  &.error {
-    background: var(--color-danger);
-    animation: none;
-  }
 }
 
 @keyframes pulse-dot {
@@ -505,6 +532,36 @@ const handleMouseUp = () => {
 // 译文使用主题色
 .translate-text {
   color: var(--color-primary);
+}
+
+// 翻译/粘贴状态（译文区域底部）
+.translate-status {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.25rem, 0.5vw, 0.375rem);
+  flex-shrink: 0;
+  margin-top: clamp(0.375rem, 0.8vw, 0.5rem);
+  padding-top: clamp(0.25rem, 0.5vw, 0.375rem);
+  border-top: 1px solid var(--border-color-light);
+  transition: border-color 0.3s ease;
+
+  &.success {
+    .translate-status-text {
+      color: #34c759;
+    }
+  }
+}
+
+.success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.translate-status-text {
+  font-size: clamp(0.7rem, 1.1vw, 0.75rem);
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
 }
 
 // 语言分隔线（横线中间文字）

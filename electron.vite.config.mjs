@@ -26,7 +26,7 @@ export default defineConfig({
         },
         // 通用业务接口代理
         '/api': {
-          target: 'http://192.168.80.8',
+          target: 'http://192.168.80.8/studio',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         }

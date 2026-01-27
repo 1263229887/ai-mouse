@@ -27,7 +27,7 @@ export function createMainWindow() {
   const aspectRatio = 3 / 2
 
   // 初始窗口：屏幕的 66% 宽度，高度按比例计算
-  const initialWidth = Math.round(screenWidth * 0.66)
+  const initialWidth = Math.round(screenWidth * 0.6)
   const initialHeight = Math.round(initialWidth / aspectRatio)
 
   // 最小窗口：屏幕的 50% 宽度，高度按比例计算

@@ -9,9 +9,9 @@ import { useDeviceStore, KEY_INDEX, BUSINESS_MODE, RECORDING_SOURCE } from '@/st
 const deviceStore = useDeviceStore()
 const { keyMappings, recordingSource } = storeToRefs(deviceStore)
 
-// 业务模式选项
+// 业务模式选项（临时去掉AI语音助手）
 const modeOptions = [
-  { label: 'AI语音助手', value: BUSINESS_MODE.AI_ASSISTANT },
+  // { label: 'AI语音助手', value: BUSINESS_MODE.AI_ASSISTANT }, // 临时隐藏
   { label: '语音输入', value: BUSINESS_MODE.VOICE_INPUT },
   { label: '语音翻译', value: BUSINESS_MODE.VOICE_TRANSLATE }
 ]
@@ -152,7 +152,7 @@ const setRecordingSource = (source) => {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  gap: clamp(1.5rem, 3vh, 2rem);
+  gap: clamp(2.5rem, 5vh, 3.5rem); // 进一步增加录音设置和按键设置之间的距离
   margin-right: clamp(3rem, 5vw, 4.5rem);
 }
 
@@ -173,7 +173,7 @@ const setRecordingSource = (source) => {
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.5rem, 1vh, 0.7rem);
+  gap: clamp(1rem, 2vh, 1.3rem); // 进一步增加标题和内容之间的距离
 }
 
 .section-title {
@@ -194,7 +194,7 @@ const setRecordingSource = (source) => {
   display: flex;
   flex-direction: column;
   gap: clamp(2.8rem, 5vh, 3.8rem);
-  padding: clamp(2.8rem, 5vh, 3.8rem) clamp(1.2rem, 2.5vw, 1.5rem);
+  padding: clamp(3.2rem, 6vh, 4.5rem) clamp(1.2rem, 2.5vw, 1.5rem); // 再次增加卡片上下内边距
   border-radius: 8px;
   background: var(--settings-card-bg);
   transition: background 0.3s ease;
@@ -270,7 +270,7 @@ const setRecordingSource = (source) => {
 
 .toggle-btn {
   flex: 1;
-  padding: clamp(0.5rem, 1vh, 0.7rem) clamp(1rem, 2vw, 1.4rem);
+  padding: clamp(0.75rem, 1.5vh, 1rem) clamp(1rem, 2vw, 1.4rem); // 增加按钮的上下内边距，让按钮更高
   font-family:
     'PingFang SC',
     -apple-system,

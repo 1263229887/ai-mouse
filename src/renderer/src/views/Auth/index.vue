@@ -1,15 +1,25 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
-import { useDeviceStore, useAuthStore } from '@/stores'
+import { useDeviceStore, useAuthStore, useLanguageStore } from '@/stores'
 import { activateDevice } from '@/api'
 import SvgIcon from '@/components/SvgIcon/index.vue'
+
+const router = useRouter()
+const route = useRoute()
 
 // 设备状态
 const deviceStore = useDeviceStore()
 
 // 授权状态
 const authStore = useAuthStore()
+
+// 语言列表
+const languageStore = useLanguageStore()
+
+// 判断是否在菜单栏内（通过路由路径判断）
+const isInMenu = computed(() => route.path.startsWith('/main'))
 
 // 厂商ID轮询定时器
 let vendorIdTimer = null
@@ -65,6 +75,12 @@ function stopVendorIdPolling() {
  * 检查并执行设备授权
  */
 async function checkAndActivateDevice() {
+  // 如果在菜单栏内，不调用授权接口
+  if (isInMenu.value) {
+    console.log('[Auth] 在菜单栏内，跳过授权接口调用')
+    return
+  }
+
   const { serialNumber, vendorId, version, isOnline } = deviceStore
 
   if (!isOnline || !serialNumber || !vendorId || !version) {
@@ -87,9 +103,12 @@ async function checkAndActivateDevice() {
       deviceType: 'smart_mouse',
       deviceModel: version
     })
+    console.log('[Auth] 授权成功--result?.data:', result?.data)
+    authStore.setAuth(result?.data)
 
-    console.log('[Auth] 授权成功:', result)
-    authStore.setAuth(result)
+    // 授权成功后立即加载语言列表
+    languageStore.fetchLanguageList()
+    console.log('[Auth] 授权成功，开始加载语言列表')
   } catch (error) {
     console.error('[Auth] 授权失败:', error)
     authStore.setAuthStatus('failed', error.message)
@@ -204,10 +223,17 @@ onUnmounted(() => {
   stopVendorIdPolling()
   window.api?.device?.removeAllListeners()
 })
+
+/**
+ * 跳转到按键设置页
+ */
+function goToSettings() {
+  router.push('/main/settings')
+}
 </script>
 
 <template>
-  <div class="auth-container">
+  <div class="auth-container" :class="{ standalone: !isInMenu }">
     <div class="content-wrapper">
       <!-- 鼠标图标 -->
       <div class="mouse-icon">
@@ -223,8 +249,12 @@ onUnmounted(() => {
 
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
+
+        <!-- 只在独立授权页显示按键设置按钮 -->
+        <button v-if="!isInMenu" class="settings-btn" @click="goToSettings">按键设置</button>
       </template>
 
       <!-- 授权中状态 -->
@@ -232,6 +262,7 @@ onUnmounted(() => {
         <span class="auth-status pending">授权中...</span>
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
@@ -241,6 +272,7 @@ onUnmounted(() => {
         <span class="auth-status error">授权失败</span>
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
+          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
           <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
@@ -269,6 +301,11 @@ onUnmounted(() => {
   overflow: hidden;
   transition: background 0.3s ease;
   position: relative;
+
+  // 独立页面时占满整个视口
+  &.standalone {
+    height: 100vh;
+  }
 }
 
 .content-wrapper {
@@ -297,7 +334,11 @@ onUnmounted(() => {
 }
 
 .auth-status {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.875rem, 1.5vw, 1rem);
   font-weight: 500;
   margin-top: clamp(0.375rem, 0.8vh, 0.5rem);
@@ -325,11 +366,45 @@ onUnmounted(() => {
 }
 
 .info-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 1rem);
   font-weight: 400;
   color: var(--text-secondary);
   transition: color 0.3s ease;
+}
+
+.settings-btn {
+  margin-top: clamp(1.5rem, 3vh, 2rem);
+  padding: clamp(0.625rem, 1.2vh, 0.75rem) clamp(2rem, 4vw, 3rem);
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
+  font-weight: 500;
+  color: #111111;
+  background: #ffffff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    opacity 0.3s ease,
+    transform 0.2s ease,
+    box-shadow 0.3s ease;
+
+  &:hover {
+    opacity: 0.9;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
 }
 
 .device-loading {
@@ -345,7 +420,11 @@ onUnmounted(() => {
   }
 
   .loading-text {
-    font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:
+      'PingFang SC',
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
     color: var(--text-secondary);
     font-size: clamp(0.85rem, 1.5vw, 1rem);
     transition: color 0.3s ease;

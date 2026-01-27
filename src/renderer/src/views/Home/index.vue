@@ -20,7 +20,7 @@ const authStore = useAuthStore()
 // 点击按键设置，设置状态并跳转到设备设置页
 const goToSettings = () => {
   appStore.setHasEnteredApp(true)
-  router.push('/settings')
+  router.push('/main/settings')
 }
 
 // 厂商ID轮询定时器
@@ -78,7 +78,6 @@ function stopVendorIdPolling() {
 /**
  * 检查并执行设备授权
  * 当设备信息完整时自动调用授权接口
- * 如果设备信息与已授权缓存完全匹配，则跳过授权接口调用
  */
 async function checkAndActivateDevice() {
   const { serialNumber, vendorId, version, isOnline } = deviceStore
@@ -95,15 +94,6 @@ async function checkAndActivateDevice() {
     return
   }
 
-  const deviceInfo = { serialNumber, vendorId, version }
-
-  // 检查是否与已授权设备信息匹配（跳过授权接口调用）
-  if (authStore.isDeviceAuthorized(deviceInfo)) {
-    console.log('[Auth] 设备信息匹配缓存，跳过授权接口调用')
-    authStore.setAuthorizedFromCache()
-    return
-  }
-
   console.log('[Auth] 设备信息完整，开始授权...')
   authStore.setAuthStatus('pending')
 
@@ -115,11 +105,8 @@ async function checkAndActivateDevice() {
       deviceModel: version
     })
 
-    console.log('[Auth] 授权成功:', result)
-    authStore.setAuth(result)
-
-    // 授权成功后，保存设备信息到缓存
-    authStore.saveAuthorizedDevice(deviceInfo)
+    console.log('[Auth] 授权成功--result?.data:', result?.data)
+    authStore.setAuth(result?.data)
   } catch (error) {
     console.error('[Auth] 授权失败:', error)
     authStore.setAuthStatus('failed', error.message)

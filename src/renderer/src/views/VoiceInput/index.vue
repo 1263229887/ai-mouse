@@ -3,6 +3,7 @@
  * VoiceInput/index.vue - 语音输入小圆球窗口
  * 显示音频状态，实时粘贴识别的文字
  * online文字累加粘贴，offline时删除所有online再粘贴offline
+ * 支持拖拽移动，收到结束标识后自动关闭
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { getVoiceTranslateService } from '@/services'
@@ -24,12 +25,28 @@ let onlineCharCount = 0
 const messageQueue = []
 let isProcessing = false
 
+// 是否正在关闭中（防止重复触发）
+let isClosing = false
+
+// 拖拽相关状态
+const isDragging = ref(false)
+let dragStartX = 0
+let dragStartY = 0
+
 // 处理WebSocket消息
 const handleMessage = async (data) => {
   // 打印完整的服务端返回数据
   console.log('[语音输入] 收到完整消息对象:', JSON.stringify(data, null, 2))
 
   if (!data || typeof data !== 'object') {
+    return
+  }
+
+  // 检测结束标识（服务端返回 is_final: true 或 status 为结束状态）
+  const isEndSignal = data.is_final === true || data.status === 'end' || data.status === 'finished'
+  if (isEndSignal) {
+    console.log('[语音输入] 收到结束标识，准备延迟关闭窗口')
+    handleAutoClose()
     return
   }
 
@@ -255,13 +272,20 @@ onUnmounted(() => {
     clearTimeout(speakingTimer)
   }
   window.electron?.ipcRenderer?.removeAllListeners?.('voice-input:close')
+  // 清理拖拽事件监听器
+  document.removeEventListener('mousemove', handleDragMove)
+  document.removeEventListener('mouseup', handleDragEnd)
   // 重置状态
   onlineCharCount = 0
   messageQueue.length = 0 // 清空队列
   isProcessing = false
+  isClosing = false
 })
 
 const handleClose = async () => {
+  if (isClosing) return
+  isClosing = true
+
   await voiceService.stop()
   isRecording.value = false
   connectionStatus.value = 'stopped'
@@ -272,10 +296,94 @@ const handleClose = async () => {
     window.api?.window?.close()
   }, 300)
 }
+
+// 自动关闭：收到后端结束标识后延迟2秒关闭
+const handleAutoClose = async () => {
+  if (isClosing) return
+  isClosing = true
+
+  console.log('[语音输入] 开始自动关闭流程，延迟2秒...')
+
+  // 发送停止信号给服务端
+  voiceService.stop()
+
+  // 延迟2秒后关闭录音和窗口
+  setTimeout(async () => {
+    console.log('[语音输入] 延迟结束，关闭录音和窗口')
+    isRecording.value = false
+    connectionStatus.value = 'stopped'
+    onlineCharCount = 0
+
+    // 再延迟300ms关闭窗口
+    setTimeout(() => {
+      window.api?.window?.close()
+    }, 300)
+  }, 2000)
+}
+
+// ============ 拖拽功能 ============
+// 记录是否发生了拖拽（用于区分点击和拖拽）
+let hasDragged = false
+
+const handleDragStart = (e) => {
+  // 阻止默认行为
+  e.preventDefault()
+
+  isDragging.value = true
+  hasDragged = false
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+
+  // 添加全局事件监听
+  document.addEventListener('mousemove', handleDragMove)
+  document.addEventListener('mouseup', handleDragEnd)
+}
+
+const handleDragMove = (e) => {
+  if (!isDragging.value) return
+
+  const deltaX = e.screenX - dragStartX
+  const deltaY = e.screenY - dragStartY
+
+  // 如果移动距离超过阈值，标记为拖拽
+  if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+    hasDragged = true
+  }
+
+  // 更新起始位置
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+
+  // 调用主进程移动窗口
+  window.api?.window?.moveBy(deltaX, deltaY)
+}
+
+const handleDragEnd = () => {
+  isDragging.value = false
+
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', handleDragMove)
+  document.removeEventListener('mouseup', handleDragEnd)
+}
+
+// 点击事件：如果没有拖拽则关闭窗口
+const handleBallClick = () => {
+  // 如果发生了拖拽，不触发关闭
+  if (hasDragged) {
+    hasDragged = false
+    return
+  }
+  handleClose()
+}
 </script>
 
 <template>
-  <div class="voice-input-ball" @click="handleClose">
+  <div
+    class="voice-input-ball"
+    :class="{ dragging: isDragging }"
+    @mousedown="handleDragStart"
+    @click="handleBallClick"
+  >
     <!-- 音频状态圆球 -->
     <div
       class="audio-ball"
@@ -324,8 +432,13 @@ const handleClose = async () => {
   align-items: center;
   justify-content: center;
   background: transparent;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
+  -webkit-app-region: no-drag;
+
+  &.dragging {
+    cursor: grabbing;
+  }
 }
 
 .audio-ball {
