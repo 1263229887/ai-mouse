@@ -29,6 +29,9 @@ const vendorIdAttempts = ref(0)
 // 当前设备ID
 let currentDeviceId = null
 
+// 本次会话是否已调用过授权接口（防止重复调用）
+let hasCalledAuth = false
+
 /**
  * 开始轮询获取厂商ID
  */
@@ -81,6 +84,12 @@ async function checkAndActivateDevice() {
     return
   }
 
+  // 本次会话已调用过授权接口，不重复调用
+  if (hasCalledAuth) {
+    console.log('[Auth] 本次会话已调用过授权接口，跳过')
+    return
+  }
+
   const { serialNumber, vendorId, version, isOnline } = deviceStore
 
   if (!isOnline || !serialNumber || !vendorId || !version) {
@@ -88,12 +97,8 @@ async function checkAndActivateDevice() {
     return
   }
 
-  if (authStore.isAuthorized || authStore.isPending) {
-    console.log('[Auth] 已授权或正在授权中')
-    return
-  }
-
   console.log('[Auth] 设备信息完整，开始授权...')
+  hasCalledAuth = true // 标记本次会话已调用授权
   authStore.setAuthStatus('pending')
 
   try {
@@ -163,6 +168,11 @@ async function initDeviceState() {
       if (state.isOnline && !state.vendorId && currentDeviceId) {
         startVendorIdPolling(currentDeviceId)
       }
+
+      // 如果设备信息已完整，主动触发授权检查
+      if (state.serialNumber && state.vendorId && state.version && state.isOnline) {
+        checkAndActivateDevice()
+      }
     }
   } catch (error) {
     console.error('[Auth] 获取设备状态失败:', error)
@@ -215,6 +225,12 @@ function initDeviceListeners() {
 }
 
 onMounted(() => {
+  // 独立授权页（非菜单栏内）：每次都要重新授权，清除缓存并重置状态
+  if (!isInMenu.value) {
+    console.log('[Auth] 独立授权页，清除缓存并强制重新授权')
+    authStore.clearAuth() // 清除缓存的 token，确保重新授权
+  }
+
   initDeviceState()
   initDeviceListeners()
 })
@@ -269,7 +285,7 @@ function goToSettings() {
 
       <!-- 授权失败状态 -->
       <template v-else-if="authStore.authStatus === 'failed'">
-        <span class="auth-status error">授权失败</span>
+        <span class="auth-status error">{{ authStore.errorMessage || '授权失败' }}</span>
         <div class="device-info">
           <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
           <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
