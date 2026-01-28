@@ -46,18 +46,37 @@ app.whenReady().then(() => {
   })
 })
 
-// 所有窗口关闭时退出应用（macOS 除外）
+let isQuitting = false
+
+function quitWithSDKCleanup() {
+  if (isQuitting) return
+  isQuitting = true
+
+  console.log('[Main] shutdown SDK before quit')
+
+  try {
+    shutdownSDK() // 你已有的导出方法
+  } catch (e) {
+    console.error('[Main] shutdownSDK error:', e)
+  }
+
+  // 给 native SDK 一点释放时间
+  setTimeout(() => {
+    app.quit()
+  }, 300)
+}
+
+// 所有窗口关闭时退出应用
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !getIsUpdating()) {
-    // 关闭 SDK 后退出
-    console.log('[Main] Closing SDK before quit...')
-    shutdownSDK()
-    app.quit()
+    quitWithSDKCleanup()
   }
 })
 
-// 应用退出前关闭 SDK
-app.on('before-quit', () => {
-  console.log('[Main] before-quit: Closing SDK...')
-  shutdownSDK()
+// 应用退出前
+app.on('before-quit', (event) => {
+  if (!isQuitting) {
+    event.preventDefault() // 🔴 必须
+    quitWithSDKCleanup()
+  }
 })
