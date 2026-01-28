@@ -98,8 +98,8 @@ export const useDeviceStore = defineStore('device', () => {
   function initDefaultKeyMappings() {
     keyMappings.value[KEY_INDEX.VOICE_CLICK] = BUSINESS_MODE.VOICE_INPUT
     keyMappings.value[KEY_INDEX.VOICE_LONG_PRESS] = BUSINESS_MODE.VOICE_TRANSLATE
-    keyMappings.value[KEY_INDEX.AI_CLICK] = BUSINESS_MODE.AI_ASSISTANT
-    keyMappings.value[KEY_INDEX.AI_LONG_PRESS] = BUSINESS_MODE.AI_ASSISTANT
+    keyMappings.value[KEY_INDEX.AI_CLICK] = BUSINESS_MODE.VOICE_INPUT
+    keyMappings.value[KEY_INDEX.AI_LONG_PRESS] = BUSINESS_MODE.VOICE_TRANSLATE
   }
 
   // ============ 录音来源配置 ============
@@ -143,22 +143,12 @@ export const useDeviceStore = defineStore('device', () => {
         const data = JSON.parse(stored)
         let needsMigration = false
 
-        // 检查是否有旧格式数据或错误的 isoCode
+        // 检查是否有旧格式字段名（仅迁移旧版本的字段结构，不清除用户选择的语言）
         if (
           data.voiceInputSourceIsoCode ||
           data.translateSourceIsoCode ||
           data.translateTargetIsoCode
         ) {
-          needsMigration = true
-        }
-        // 检查新格式中的 isoCode 是否正确
-        if (data.voiceInputSource?.isoCode && data.voiceInputSource.isoCode !== 'ZH') {
-          needsMigration = true
-        }
-        if (data.translateSource?.isoCode && data.translateSource.isoCode !== 'ZH') {
-          needsMigration = true
-        }
-        if (data.translateTarget?.isoCode && data.translateTarget.isoCode !== 'EN') {
           needsMigration = true
         }
 
@@ -187,8 +177,12 @@ export const useDeviceStore = defineStore('device', () => {
 
     try {
       const stored = localStorage.getItem(DEVICE_SETTINGS_KEY)
+      console.log('[Device] localStorage 原始数据:', stored)
+
       if (stored) {
         const data = JSON.parse(stored)
+        console.log('[Device] 解析后的数据:', data)
+
         // 恢复按键映射（注意：JSON.parse 会把数字 key 变成字符串，需要转换）
         if (data.keyMappings) {
           Object.keys(data.keyMappings).forEach((key) => {
@@ -203,20 +197,29 @@ export const useDeviceStore = defineStore('device', () => {
         if (data.recordingSource) {
           recordingSource.value = data.recordingSource
         }
-        // 恢复语言配置（仅恢复 areaId 和 chinese，isoCode 保持默认值，防止旧缓存错误值覆盖）
+        // 恢复语言配置（完整恢复 isoCode、areaId 和 chinese）
         if (data.voiceInputSource) {
+          console.log('[Device] 恢复 voiceInputSource:', data.voiceInputSource)
+          if (data.voiceInputSource.isoCode)
+            voiceInputSource.value.isoCode = data.voiceInputSource.isoCode
           if (data.voiceInputSource.areaId)
             voiceInputSource.value.areaId = data.voiceInputSource.areaId
           if (data.voiceInputSource.chinese)
             voiceInputSource.value.chinese = data.voiceInputSource.chinese
         }
         if (data.translateSource) {
+          console.log('[Device] 恢复 translateSource:', data.translateSource)
+          if (data.translateSource.isoCode)
+            translateSource.value.isoCode = data.translateSource.isoCode
           if (data.translateSource.areaId)
             translateSource.value.areaId = data.translateSource.areaId
           if (data.translateSource.chinese)
             translateSource.value.chinese = data.translateSource.chinese
         }
         if (data.translateTarget) {
+          console.log('[Device] 恢复 translateTarget:', data.translateTarget)
+          if (data.translateTarget.isoCode)
+            translateTarget.value.isoCode = data.translateTarget.isoCode
           if (data.translateTarget.areaId)
             translateTarget.value.areaId = data.translateTarget.areaId
           if (data.translateTarget.chinese)
@@ -230,7 +233,7 @@ export const useDeviceStore = defineStore('device', () => {
           translateTarget: { ...translateTarget.value }
         })
       } else {
-        console.log('[Device] 使用默认设置:', {
+        console.log('[Device] localStorage 为空，使用默认设置:', {
           keyMappings: { ...keyMappings.value },
           recordingSource: recordingSource.value,
           voiceInputSource: { ...voiceInputSource.value },

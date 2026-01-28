@@ -29,18 +29,28 @@ const translateTargetAreaId = computed(() => deviceStore.translateTarget.areaId)
  * 初始化语言的 areaId 和 chinese（根据当前 isoCode 从接口匹配）
  */
 function initLanguageInfo() {
+  console.log('[Dashboard] initLanguageInfo 开始执行')
+  console.log('[Dashboard] 当前 deviceStore 语言配置:', {
+    voiceInputSource: { ...deviceStore.voiceInputSource },
+    translateSource: { ...deviceStore.translateSource },
+    translateTarget: { ...deviceStore.translateTarget }
+  })
+
   // 语音输入：根据 isoCode 获取对应的 areaId 和 chinese
   const voiceInfo = languageStore.getLanguageInfo(deviceStore.voiceInputSource.isoCode)
+  console.log('[Dashboard] voiceInfo:', voiceInfo)
   if (voiceInfo) {
     deviceStore.setVoiceInputSource(voiceInfo.isoCode, voiceInfo.areaId, voiceInfo.chinese)
   }
   // 翻译源语言
   const sourceInfo = languageStore.getLanguageInfo(deviceStore.translateSource.isoCode)
+  console.log('[Dashboard] sourceInfo:', sourceInfo)
   if (sourceInfo) {
     deviceStore.setTranslateSource(sourceInfo.isoCode, sourceInfo.areaId, sourceInfo.chinese)
   }
   // 翻译目标语言
   const targetInfo = languageStore.getLanguageInfo(deviceStore.translateTarget.isoCode)
+  console.log('[Dashboard] targetInfo:', targetInfo)
   if (targetInfo) {
     deviceStore.setTranslateTarget(targetInfo.isoCode, targetInfo.areaId, targetInfo.chinese)
   }

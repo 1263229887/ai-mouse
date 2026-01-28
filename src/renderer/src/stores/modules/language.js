@@ -36,6 +36,7 @@ export const useLanguageStore = defineStore('language', () => {
 
       // 保存原始列表
       rawLanguageList.value = allList
+      console.log('[Language] 原始语言列表 rawLanguageList:', allList)
 
       // 平铺处理：展开 countryList
       languageList.value = allList.flatMap((item) => {
@@ -55,6 +56,7 @@ export const useLanguageStore = defineStore('language', () => {
           }
         }
       })
+      console.log('[Language] 平铺后的 languageList:', languageList.value)
 
       isLoaded.value = true
       console.log('[Language] 语言列表加载成功:', languageList.value.length, '条')
@@ -68,21 +70,64 @@ export const useLanguageStore = defineStore('language', () => {
 
   /**
    * 根据 isoCode 从原始列表中获取第一个 countryList 的 areaId 和 chinese
+   * 注意：isoCode 在原始列表中可能有多个（不同语种同一 isoCode），
+   * 所以需要通过 isoCode + chinese 名称确认是否匹配正确
    */
   function getLanguageInfo(isoCode) {
-    const langItem = rawLanguageList.value.find((item) => item.isoCode === isoCode)
-    if (langItem) {
-      const areaId =
-        Array.isArray(langItem.countryList) && langItem.countryList.length
-          ? langItem.countryList[0].id || ''
-          : ''
-      return {
-        isoCode: langItem.isoCode,
-        areaId,
-        chinese: langItem.chinese || ''
+    console.log('[Language] getLanguageInfo 调用, isoCode:', isoCode)
+    console.log('[Language] rawLanguageList 长度:', rawLanguageList.value.length)
+
+    // 检查是否有多个相同 isoCode 的项
+    const matchedItems = rawLanguageList.value.filter((item) => item.isoCode === isoCode)
+    console.log('[Language] isoCode 匹配到的所有项:', matchedItems)
+
+    if (matchedItems.length === 0) {
+      console.log('[Language] getLanguageInfo 未找到匹配项, 返回 null')
+      return null
+    }
+
+    // 如果只有一个匹配项，直接使用
+    let langItem = matchedItems[0]
+
+    // 如果有多个匹配项，尝试根据常见的 isoCode-语种名对应关系找到正确的
+    if (matchedItems.length > 1) {
+      console.warn('[Language] 警告: isoCode', isoCode, '存在多个匹配项!')
+      // 常见 isoCode 对应的中文名
+      const isoCodeToChinese = {
+        ZH: '中文',
+        EN: '英语',
+        JA: '日语',
+        KO: '韩语',
+        FR: '法语',
+        DE: '德语',
+        ES: '西班牙语',
+        RU: '俄语',
+        PT: '葡萄牙语',
+        IT: '意大利语'
+      }
+      const expectedChinese = isoCodeToChinese[isoCode]
+      if (expectedChinese) {
+        const correctItem = matchedItems.find((item) => item.chinese === expectedChinese)
+        if (correctItem) {
+          langItem = correctItem
+          console.log('[Language] 通过 chinese 名称匹配到正确项:', langItem)
+        }
       }
     }
-    return null
+
+    console.log('[Language] 最终使用的 langItem:', langItem)
+
+    const areaId =
+      Array.isArray(langItem.countryList) && langItem.countryList.length
+        ? langItem.countryList[0].id || ''
+        : ''
+    const result = {
+      isoCode: langItem.isoCode,
+      areaId,
+      chinese: langItem.chinese || ''
+    }
+    console.log('[Language] getLanguageInfo 返回:', result)
+    return result
   }
 
   return {

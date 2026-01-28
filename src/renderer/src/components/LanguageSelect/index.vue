@@ -118,6 +118,14 @@ const searchInputRef = ref(null)
 
 // 计算显示值：只显示语种名（chinese）
 const displayValue = computed(() => {
+  console.log(
+    '[LanguageSelect] displayValue 计算, modelValue:',
+    props.modelValue,
+    'selectedAreaId:',
+    props.selectedAreaId
+  )
+  console.log('[LanguageSelect] options 长度:', props.options?.length)
+
   if (!props.modelValue) return props.placeholder
   // 优先用 areaId 匹配
   if (props.selectedAreaId) {
@@ -125,10 +133,12 @@ const displayValue = computed(() => {
       (opt) =>
         opt.areaId === props.selectedAreaId || String(opt.areaId) === String(props.selectedAreaId)
     )
+    console.log('[LanguageSelect] areaId 匹配结果:', selected)
     if (selected) return selected.chinese
   }
   // 否则用 isoCode 匹配
   const selected = props.options.find((opt) => opt.isoCode === props.modelValue)
+  console.log('[LanguageSelect] isoCode 匹配结果:', selected)
   if (selected) return selected.chinese
   return props.placeholder
 })

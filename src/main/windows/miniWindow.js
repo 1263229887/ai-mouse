@@ -101,10 +101,10 @@ export function createMiniWindow(type, route, options = {}) {
 
   miniWindow.on('ready-to-show', () => {
     miniWindow.show()
-    // 暂时关闭开发者工具，测试是否影响鼠标录音
-    // if (is.dev) {
-    //   miniWindow.webContents.openDevTools({ mode: 'detach' })
-    // }
+    // 暂时关闭开发者工具，测试是否影响鼠标录音--已确认鼠标录音过程中指针卡死是硬件问题
+    if (is.dev) {
+      miniWindow.webContents.openDevTools({ mode: 'detach' })
+    }
   })
 
   // 加载页面（带路由）

@@ -15,6 +15,9 @@ const SDK_CLEANUP_DELAY = 1500
 // 是否正在执行优雅退出
 let isGracefullyQuitting = false
 
+// SDK 是否已初始化（防止刷新页面时重复初始化）
+let isSDKInitialized = false
+
 /**
  * 优雅退出应用
  * 先隐藏窗口（用户无感），然后异步清理 SDK，最后退出
@@ -78,11 +81,20 @@ app.whenReady().then(() => {
   const mainWindow = createMainWindow()
 
   // 窗口完全加载后再初始化 SDK，确保渲染进程已准备好接收事件
+  // 注意：只在第一次加载时初始化 SDK，刷新页面时不重复初始化
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('[Main] Window did-finish-load, initializing SDK...')
+    console.log('[Main] Window did-finish-load')
+    
+    // 防止刷新页面时重复初始化 SDK
+    if (isSDKInitialized) {
+      console.log('[Main] SDK already initialized, skipping...')
+      return
+    }
+    
     // 稍微延迟一下，确保渲染进程的事件监听器已注册
     setTimeout(() => {
       initDeviceSDK()
+      isSDKInitialized = true
       console.log('[Main] SDK initialization completed')
     }, 500)
   })
