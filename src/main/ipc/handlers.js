@@ -421,7 +421,7 @@ function registerDeviceHandlers() {
 
 /**
  * 初始化设备 SDK 并注册事件监听
- * 应在窗口完全加载后调用，确保渲染进程已准备好接收事件
+ * 应在主进程启动时调用
  */
 export function initDeviceSDK() {
   console.log('[SDK] Initializing device SDK...')

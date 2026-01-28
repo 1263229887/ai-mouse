@@ -9,53 +9,6 @@ import { registerAllHandlers, shutdownSDK, initDeviceSDK } from './ipc'
 import { setupUpdater, getIsUpdating } from './services'
 import icon from '../../resources/icon.png?asset'
 
-// SDK 清理延迟时间（毫秒）
-const SDK_CLEANUP_DELAY = 1500
-
-// 是否正在执行优雅退出
-let isGracefullyQuitting = false
-
-// SDK 是否已初始化（防止刷新页面时重复初始化）
-let isSDKInitialized = false
-
-/**
- * 优雅退出应用
- * 先隐藏窗口（用户无感），然后异步清理 SDK，最后退出
- */
-async function gracefulQuit() {
-  if (isGracefullyQuitting) return
-  isGracefullyQuitting = true
-
-  console.log('[Main] Starting graceful quit...')
-
-  // 1. 立即隐藏所有窗口（用户无感）
-  const windows = BrowserWindow.getAllWindows()
-  windows.forEach((win) => {
-    try {
-      win.hide()
-    } catch {
-      /* ignore */
-    }
-  })
-  console.log('[Main] Windows hidden')
-
-  // 2. 关闭 SDK
-  console.log('[Main] Closing SDK...')
-  try {
-    shutdownSDK()
-  } catch (error) {
-    console.error('[Main] SDK shutdown error:', error)
-  }
-
-  // 3. 等待 SDK 内部清理完成
-  console.log(`[Main] Waiting ${SDK_CLEANUP_DELAY}ms for SDK cleanup...`)
-  await new Promise((resolve) => setTimeout(resolve, SDK_CLEANUP_DELAY))
-
-  // 4. 真正退出
-  console.log('[Main] Exiting application')
-  app.exit(0)
-}
-
 // 应用就绪后初始化
 app.whenReady().then(() => {
   // 设置应用 ID (Windows)
@@ -71,33 +24,19 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // 注册所有 IPC 处理器（不包括 SDK 初始化）
+  // 注册所有 IPC 处理器
   registerAllHandlers()
 
   // 初始化自动更新服务
   setupUpdater()
 
-  // 创建主窗口
-  const mainWindow = createMainWindow()
+  // 在创建窗口之前先初始化 SDK
+  console.log('[Main] Initializing SDK before window creation...')
+  initDeviceSDK()
+  console.log('[Main] SDK initialization completed')
 
-  // 窗口完全加载后再初始化 SDK，确保渲染进程已准备好接收事件
-  // 注意：只在第一次加载时初始化 SDK，刷新页面时不重复初始化
-  mainWindow.webContents.on('did-finish-load', () => {
-    console.log('[Main] Window did-finish-load')
-    
-    // 防止刷新页面时重复初始化 SDK
-    if (isSDKInitialized) {
-      console.log('[Main] SDK already initialized, skipping...')
-      return
-    }
-    
-    // 稍微延迟一下，确保渲染进程的事件监听器已注册
-    setTimeout(() => {
-      initDeviceSDK()
-      isSDKInitialized = true
-      console.log('[Main] SDK initialization completed')
-    }, 500)
-  })
+  // 创建主窗口
+  createMainWindow()
 
   // macOS: 点击 Dock 图标重新创建窗口
   app.on('activate', () => {
@@ -108,18 +47,17 @@ app.whenReady().then(() => {
 })
 
 // 所有窗口关闭时退出应用（macOS 除外）
-// 使用优雅退出，先隐藏窗口再清理 SDK
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !getIsUpdating()) {
-    gracefulQuit()
+    // 关闭 SDK 后退出
+    console.log('[Main] Closing SDK before quit...')
+    shutdownSDK()
+    app.quit()
   }
 })
 
-// 应用退出前清理（处理其他退出方式，如 app.quit()）
-app.on('before-quit', (event) => {
-  // 如果还没有开始优雅退出，则启动优雅退出流程
-  if (!isGracefullyQuitting) {
-    event.preventDefault()
-    gracefulQuit()
-  }
+// 应用退出前关闭 SDK
+app.on('before-quit', () => {
+  console.log('[Main] before-quit: Closing SDK...')
+  shutdownSDK()
 })
