@@ -316,18 +316,17 @@ function goToSettings() {
 <style lang="scss" scoped>
 .auth-container {
   width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
   background: var(--bg-color-page);
-  overflow: hidden;
   transition: background 0.3s ease;
   position: relative;
 
   // 独立页面时占满整个视口
   &.standalone {
-    height: 100vh;
+    min-height: 100vh;
   }
 }
 

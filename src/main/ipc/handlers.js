@@ -274,6 +274,8 @@ function handleKeyEventInMain(deviceId, index, status) {
 
 /**
  * 开始录音
+ * 注意：此函数通过 setImmediate 异步调用，已脱离 SDK 回调的调用栈
+ * 因此可以安全地调用 SDK 函数
  */
 function startRecording(deviceId, keyIndex, businessMode) {
   console.log('[Main] startRecording:', {
@@ -291,6 +293,7 @@ function startRecording(deviceId, keyIndex, businessMode) {
   }
 
   // 如果是鼠标录音，启用鼠标麦克风
+  // 此处调用 SDK 函数是安全的，因为已经通过 setImmediate 脱离了回调线程
   if (deviceConfig.recordingSource === RECORDING_SOURCE.MOUSE && deviceId) {
     try {
       console.log('[Main] 启用鼠标麦克风')

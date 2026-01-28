@@ -230,15 +230,15 @@ function initDeviceListeners() {
 <style lang="scss" scoped>
 .dashboard-container {
   width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   padding-top: clamp(3rem, 8vh, 5rem);
+  padding-bottom: clamp(2rem, 4vh, 3rem);
   background: var(--bg-color-page);
   transition: background 0.3s ease;
-  box-sizing: border-box;
 }
 
 .main-title {

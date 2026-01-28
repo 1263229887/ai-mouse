@@ -219,15 +219,20 @@ function registerCallbacks() {
       audioAccess: null // null: 未知, 1: 有权限, 0: 无权限
     })
 
-    // 请求设备信息
-    SDK_getDeviceActive(deviceId)
-    SDK_getDeviceSN(deviceId)
-    SDK_getDeviceVersion(deviceId)
-    // 查询音频使能状态
-    SDK_getAudioEnable(deviceId)
-
-    // 通知监听器
+    // 通知监听器（先通知，再异步查询设备信息）
     emitEvent('deviceConnected', { deviceId, connectionMode })
+
+    // 重要：SDK 要求不能在回调线程中直接调用其他 SDK 函数
+    // 使用 setImmediate 将 SDK 调用推迟到下一个事件循环周期
+    setImmediate(() => {
+      console.log('[SDK] Querying device info (async):', deviceId)
+      // 请求设备信息
+      SDK_getDeviceActive(deviceId)
+      SDK_getDeviceSN(deviceId)
+      SDK_getDeviceVersion(deviceId)
+      // 查询音频使能状态
+      SDK_getAudioEnable(deviceId)
+    })
   }
 
   // 设备断开回调（保存引用防止GC）
@@ -285,7 +290,12 @@ function registerCallbacks() {
       }
     }
 
-    emitEvent('deviceMessage', { deviceId, data: messageData })
+    // 重要：SDK 要求不能在回调线程中直接调用其他 SDK 函数或执行耗时操作
+    // 使用 setImmediate 将事件通知推迟到下一个事件循环周期
+    // 这样可以确保回调快速返回，避免阻塞 SDK 内部线程
+    setImmediate(() => {
+      emitEvent('deviceMessage', { deviceId, data: messageData })
+    })
   }
 
   // 音频数据回调（保存引用防止GC）

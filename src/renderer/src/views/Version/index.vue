@@ -120,7 +120,7 @@ onUnmounted(() => {
     <!-- 检查失败 -->
     <div v-else-if="checkError" class="status-view">
       <h1 class="title">检查更新失败</h1>
-      <p class="version-text">版本号V{{ currentVersion }}</p>
+      <p class="version-text">当前版本V{{ currentVersion }}</p>
       <p class="error-text">{{ checkError }}</p>
       <button class="retry-btn" @click="checkForUpdate">重新检查</button>
     </div>
@@ -128,13 +128,13 @@ onUnmounted(() => {
     <!-- 已是最新版本 -->
     <div v-else-if="!hasUpdate" class="status-view">
       <h1 class="title">已是最新版本</h1>
-      <p class="version-text">版本号V{{ currentVersion }}</p>
+      <p class="version-text">当前版本V{{ currentVersion }}</p>
     </div>
 
     <!-- 发现新版本 -->
     <div v-else class="status-view">
-      <h1 class="title">发现新版本</h1>
-      <p class="version-text">版本号V{{ newVersion }}</p>
+      <h1 class="title">发现新版本V{{ newVersion }}</h1>
+      <p class="version-text">当前版本V{{ currentVersion }}</p>
 
       <!-- 下载进度 -->
       <div v-if="isDownloading" class="download-progress">
@@ -161,7 +161,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .version-container {
   width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -178,7 +178,11 @@ onUnmounted(() => {
 }
 
 .title {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(1.25rem, 2.5vw, 1.5rem);
   font-weight: 500;
   color: var(--text-primary);
@@ -187,7 +191,11 @@ onUnmounted(() => {
 }
 
 .version-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   color: var(--text-secondary);
   margin: 0;
@@ -195,7 +203,11 @@ onUnmounted(() => {
 }
 
 .status-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   color: var(--text-secondary);
   margin: clamp(0.75rem, 1.5vh, 1rem) 0 0;
@@ -203,7 +215,11 @@ onUnmounted(() => {
 }
 
 .error-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   color: var(--color-danger);
   margin: clamp(0.25rem, 0.5vh, 0.5rem) 0 clamp(1rem, 2vh, 1.5rem);
@@ -211,7 +227,11 @@ onUnmounted(() => {
 }
 
 .success-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   color: var(--color-success);
   margin: 0 0 clamp(1rem, 2vh, 1.5rem);
@@ -257,7 +277,11 @@ onUnmounted(() => {
 }
 
 .progress-text {
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   color: var(--text-secondary);
   margin: clamp(0.5rem, 1vh, 0.75rem) 0 0;
@@ -279,7 +303,11 @@ onUnmounted(() => {
   padding: clamp(0.6rem, 1.2vh, 0.75rem) clamp(3rem, 6vw, 4rem);
   background: transparent;
   color: var(--text-primary);
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   font-weight: 500;
   border: 1px solid var(--border-color);
@@ -311,7 +339,11 @@ onUnmounted(() => {
   padding: clamp(0.4rem, 0.8vh, 0.5rem) clamp(1.25rem, 2.5vw, 1.5rem);
   background: transparent;
   color: var(--text-secondary);
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.75rem, 1.3vw, 0.8125rem);
   border: 1px solid var(--border-color);
   border-radius: clamp(0.3rem, 0.6vw, 0.375rem);
@@ -332,7 +364,11 @@ onUnmounted(() => {
   padding: clamp(0.6rem, 1.2vh, 0.75rem) clamp(2.5rem, 5vw, 3rem);
   background: linear-gradient(270deg, #8be6b0 0%, #27acc2 100%);
   color: #0b0d0f;
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
   font-size: clamp(0.8rem, 1.4vw, 0.875rem);
   font-weight: 600;
   border: none;

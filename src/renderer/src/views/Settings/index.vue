@@ -134,22 +134,19 @@ const setRecordingSource = (source) => {
 <style lang="scss" scoped>
 .settings-container {
   width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: clamp(1rem, 2vh, 1.5rem) clamp(1.5rem, 3vw, 2rem);
   background: var(--bg-color-page);
-  overflow: hidden;
   transition: background 0.3s ease;
-  box-sizing: border-box;
 }
 
 // 左侧设置区域
 .settings-left {
   flex: 0 0 auto;
   width: clamp(340px, 35vw, 450px);
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
   gap: clamp(2.5rem, 5vh, 3.5rem); // 进一步增加录音设置和按键设置之间的距离
