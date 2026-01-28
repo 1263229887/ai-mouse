@@ -383,11 +383,15 @@ function registerDeviceHandlers() {
 
   // 监听设备连接事件，转发给渲染进程
   addEventListener('deviceConnected', (data) => {
+    console.log('[IPC] Broadcasting device connected to renderer:', data)
+    console.log('[IPC] Registered windows:', windowManager.getAllNames())
     windowManager.broadcast(IPC_CHANNELS.DEVICE.CONNECTED, data)
   })
 
   // 监听设备断开事件
   addEventListener('deviceDisconnected', (data) => {
+    console.log('[IPC] Broadcasting device disconnected to renderer:', data)
+    console.log('[IPC] Registered windows:', windowManager.getAllNames())
     windowManager.broadcast(IPC_CHANNELS.DEVICE.DISCONNECTED, data)
   })
 

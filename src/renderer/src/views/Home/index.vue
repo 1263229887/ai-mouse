@@ -190,6 +190,8 @@ function initDeviceListeners() {
     stopVendorIdPolling()
     currentDeviceId = null
     deviceStore.resetDevice()
+    // 设备断开时清除授权状态
+    authStore.clearAuth()
   })
 
   // 监听设备消息（包含设备信息更新）

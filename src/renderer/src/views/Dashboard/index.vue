@@ -1,10 +1,14 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import LanguageSelect from '@/components/LanguageSelect/index.vue'
-import { useDeviceStore, useLanguageStore } from '@/stores'
+import { useDeviceStore, useLanguageStore, useAuthStore } from '@/stores'
 
 const deviceStore = useDeviceStore()
 const languageStore = useLanguageStore()
+const authStore = useAuthStore()
+
+// 设备连接状态（已授权且设备在线才算已连接）
+const isDeviceConnected = computed(() => authStore.isAuthorized && deviceStore.isOnline)
 
 // 翻转状态（用于交换按钮动画）
 const isFlipped = ref(false)
@@ -94,7 +98,59 @@ onMounted(() => {
   } else if (languageStore.isLoaded) {
     initLanguageInfo()
   }
+
+  // 注册设备事件监听
+  initDeviceListeners()
 })
+
+onUnmounted(() => {
+  // 移除设备监听器
+  window.api?.device?.removeAllListeners()
+})
+
+/**
+ * 初始化设备监听
+ */
+function initDeviceListeners() {
+  // 监听设备连接
+  window.api?.device?.onDeviceConnected((data) => {
+    console.log('[Dashboard] Device connected:', data)
+    deviceStore.updateDeviceInfo({
+      deviceId: data.deviceId,
+      connectionMode: data.connectionMode
+    })
+  })
+
+  // 监听设备断开
+  window.api?.device?.onDeviceDisconnected((data) => {
+    console.log('[Dashboard] Device disconnected:', data)
+    deviceStore.resetDevice()
+    // 设备断开时清除授权状态
+    authStore.clearAuth()
+  })
+
+  // 监听设备消息
+  window.api?.device?.onDeviceMessage((data) => {
+    console.log('[Dashboard] Device message:', data)
+    const { data: messageData } = data
+
+    if (messageData && messageData.type) {
+      switch (messageData.type) {
+        case 'deviceSN':
+          deviceStore.setSerialNumber(messageData.sn || '')
+          break
+        case 'deviceVersion':
+          deviceStore.setVersion(messageData.version || '')
+          break
+        case 'deviceActive':
+          deviceStore.setOnlineStatus(messageData.active === 1)
+          break
+        default:
+          break
+      }
+    }
+  })
+}
 </script>
 
 <template>
@@ -103,9 +159,9 @@ onMounted(() => {
     <h1 class="main-title">AI Mouse</h1>
 
     <!-- 连接状态标签 -->
-    <div class="status-badge">
-      <span class="status-dot"></span>
-      <span class="status-text">AI鼠标已连接</span>
+    <div class="status-badge" :class="{ disconnected: !isDeviceConnected }">
+      <span class="status-dot" :class="{ disconnected: !isDeviceConnected }"></span>
+      <span class="status-text">{{ isDeviceConnected ? 'AI鼠标已连接' : 'AI鼠标未连接' }}</span>
     </div>
 
     <!-- 卡片容器 -->
@@ -205,6 +261,11 @@ onMounted(() => {
   border-radius: 50%;
   background: #34c759;
   animation: breathing 2s ease-in-out infinite;
+  transition: background 0.3s ease;
+
+  &.disconnected {
+    background: #ff3b30;
+  }
 }
 
 @keyframes breathing {
@@ -227,6 +288,11 @@ onMounted(() => {
     sans-serif;
   font-size: clamp(0.75rem, 1.3vw, 0.875rem); // ~14px
   color: #34c759;
+  transition: color 0.3s ease;
+
+  .disconnected & {
+    color: #ff3b30;
+  }
 }
 
 .cards-wrapper {

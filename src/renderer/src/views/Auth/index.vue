@@ -78,9 +78,9 @@ function stopVendorIdPolling() {
  * 检查并执行设备授权
  */
 async function checkAndActivateDevice() {
-  // 如果在菜单栏内，不调用授权接口
-  if (isInMenu.value) {
-    console.log('[Auth] 在菜单栏内，跳过授权接口调用')
+  // 如果在菜单栏内且已经授权，跳过授权接口调用
+  if (isInMenu.value && authStore.isAuthorized) {
+    console.log('[Auth] 在菜单栏内且已授权，跳过授权接口调用')
     return
   }
 
@@ -184,12 +184,16 @@ async function initDeviceState() {
  */
 function initDeviceListeners() {
   window.api?.device?.onDeviceConnected((data) => {
-    console.log('Device connected:', data)
+    console.log('[Auth] Device connected:', data)
     currentDeviceId = data.deviceId
     deviceStore.updateDeviceInfo({
       deviceId: data.deviceId,
       connectionMode: data.connectionMode
     })
+    // 设备重新连接后，启动厂商ID轮询（因为断开时已清除vendorId）
+    if (!deviceStore.vendorId && currentDeviceId) {
+      startVendorIdPolling(currentDeviceId)
+    }
   })
 
   window.api?.device?.onDeviceDisconnected((data) => {
@@ -197,6 +201,9 @@ function initDeviceListeners() {
     stopVendorIdPolling()
     currentDeviceId = null
     deviceStore.resetDevice()
+    // 设备断开时清除授权状态，重置授权标志
+    authStore.clearAuth()
+    hasCalledAuth = false
   })
 
   window.api?.device?.onDeviceMessage((data) => {
