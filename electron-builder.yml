@@ -99,7 +99,8 @@ appImage:
   artifactName: ai-mouse.${ext}
 npmRebuild: false
 # 自动更新配置
+# 更新地址通过环境变量动态配置（见 .env.test 和 .env.production）
 # 测试环境: http://192.168.80.7/win/ 和 http://192.168.80.7/mac/
-# 生产环境: 待定
+# 生产环境: https://www.danaai.net/win/ 和 https://www.danaai.net/mac/
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

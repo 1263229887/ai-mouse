@@ -15,12 +15,42 @@ const { autoUpdater } = updater
 let isUpdating = false
 
 /**
+ * 获取当前平台的更新服务器地址
+ * 根据构建环境和操作系统返回对应的更新地址
+ * @returns {string|null}
+ */
+function getUpdateServerUrl() {
+  const platform = process.platform
+  let url = null
+
+  if (platform === 'win32') {
+    url = import.meta.env.MAIN_VITE_UPDATE_SERVER_WIN
+  } else if (platform === 'darwin') {
+    url = import.meta.env.MAIN_VITE_UPDATE_SERVER_MAC
+  }
+
+  console.log('[Updater] 更新服务器地址', { platform, url })
+  return url
+}
+
+/**
  * 初始化自动更新服务
  */
 export function setupUpdater() {
   // 禁用自动下载和自动安装
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+
+  // 根据环境变量设置更新服务器地址
+  const updateServerUrl = getUpdateServerUrl()
+  if (updateServerUrl) {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: updateServerUrl,
+      channel: 'latest'
+    })
+    console.log('[Updater] 已设置更新服务器', updateServerUrl)
+  }
 
   // 开发环境使用 dev-app-update.yml 配置
   if (is.dev) {
