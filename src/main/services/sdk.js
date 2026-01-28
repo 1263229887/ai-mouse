@@ -241,14 +241,19 @@ function registerCallbacks() {
   // 设备消息回调（保存引用防止GC）- 包含按键事件
   jsCallbacks.onDeviceMessage = (deviceId, data) => {
     // 添加详细日志，帮助诊断按键事件
-    // console.log('[SDK] Device message received:', deviceId)
-    // console.log('[SDK] Raw data:', data)
+    console.log('[SDK] Device message received, deviceId:', deviceId)
+    console.log('[SDK] Raw data:', data)
 
     // 解析消息数据
     let messageData = null
     try {
       messageData = JSON.parse(data)
       console.log('[SDK] Parsed message:', JSON.stringify(messageData))
+
+      // 特别标记按键事件
+      if (messageData.type === 'deviceKeyEvent') {
+        console.log('[SDK] >>> KEY EVENT DETECTED <<<', messageData)
+      }
     } catch {
       messageData = { raw: data }
       console.log('[SDK] Failed to parse, using raw:', messageData)

@@ -26,7 +26,8 @@ import {
   downloadUpdate,
   quitAndInstall,
   setDeviceMicrophoneEnable,
-  getAudioEnable
+  getAudioEnable,
+  getConnectedDeviceCount
 } from '../services'
 import { exec } from 'child_process'
 
@@ -376,53 +377,9 @@ function stopRecording() {
 
 /**
  * 注册设备/SDK 相关 IPC
+ * 注意：SDK 初始化已移至 initDeviceSDK()，在窗口加载完成后调用
  */
 function registerDeviceHandlers() {
-  // 初始化 SDK
-  initSDK(true)
-
-  // 监听设备连接事件，转发给渲染进程
-  addEventListener('deviceConnected', (data) => {
-    console.log('[IPC] Broadcasting device connected to renderer:', data)
-    console.log('[IPC] Registered windows:', windowManager.getAllNames())
-    windowManager.broadcast(IPC_CHANNELS.DEVICE.CONNECTED, data)
-  })
-
-  // 监听设备断开事件
-  addEventListener('deviceDisconnected', (data) => {
-    console.log('[IPC] Broadcasting device disconnected to renderer:', data)
-    console.log('[IPC] Registered windows:', windowManager.getAllNames())
-    windowManager.broadcast(IPC_CHANNELS.DEVICE.DISCONNECTED, data)
-  })
-
-  // 监听设备消息（包含设备信息更新和按键事件）
-  addEventListener('deviceMessage', (data) => {
-    const { data: messageData, deviceId } = data
-
-    // 如果是按键事件，在主进程直接处理业务逻辑
-    if (messageData && messageData.type === 'deviceKeyEvent') {
-      const { index, status } = messageData
-
-      // 主进程处理按键业务（传递 deviceId）
-      handleKeyEventInMain(deviceId, index, status)
-
-      // 同时转发给渲染进程（用于 UI 更新等）
-      windowManager.broadcast(IPC_CHANNELS.DEVICE.KEY_EVENT, {
-        deviceId: deviceId,
-        index: messageData.index,
-        status: messageData.status
-      })
-    }
-
-    // 所有消息都转发
-    windowManager.broadcast(IPC_CHANNELS.DEVICE.MESSAGE, data)
-  })
-
-  // 监听设备音频数据，转发给渲染进程
-  addEventListener('deviceAudioData', (data) => {
-    windowManager.broadcast(IPC_CHANNELS.DEVICE.AUDIO_DATA, data)
-  })
-
   // 获取厂商ID（同步方法）
   ipcMain.handle(IPC_CHANNELS.DEVICE.GET_VENDOR_ID, (event, deviceId) => {
     const vendorId = getDeviceVendorId(deviceId)
@@ -457,6 +414,67 @@ function registerDeviceHandlers() {
   ipcMain.handle(IPC_CHANNELS.DEVICE.GET_CONFIG, () => {
     return deviceConfig
   })
+}
+
+/**
+ * 初始化设备 SDK 并注册事件监听
+ * 应在窗口完全加载后调用，确保渲染进程已准备好接收事件
+ */
+export function initDeviceSDK() {
+  console.log('[SDK] Initializing device SDK...')
+
+  // 初始化 SDK
+  initSDK(true)
+
+  // 监听设备连接事件，转发给渲染进程
+  addEventListener('deviceConnected', (data) => {
+    console.log('[IPC] Broadcasting device connected to renderer:', data)
+    console.log('[IPC] Registered windows:', windowManager.getAllNames())
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.CONNECTED, data)
+  })
+
+  // 监听设备断开事件
+  addEventListener('deviceDisconnected', (data) => {
+    console.log('[IPC] Broadcasting device disconnected to renderer:', data)
+    console.log('[IPC] Registered windows:', windowManager.getAllNames())
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.DISCONNECTED, data)
+  })
+
+  // 监听设备消息（包含设备信息更新和按键事件）
+  addEventListener('deviceMessage', (data) => {
+    const { data: messageData, deviceId } = data
+
+    // 如果是按键事件，在主进程直接处理业务逻辑
+    if (messageData && messageData.type === 'deviceKeyEvent') {
+      const { index, status } = messageData
+      console.log('[IPC] Key event received in handler:', { deviceId, index, status })
+
+      // 主进程处理按键业务（传递 deviceId）
+      handleKeyEventInMain(deviceId, index, status)
+
+      // 同时转发给渲染进程（用于 UI 更新等）
+      windowManager.broadcast(IPC_CHANNELS.DEVICE.KEY_EVENT, {
+        deviceId: deviceId,
+        index: messageData.index,
+        status: messageData.status
+      })
+    }
+
+    // 所有消息都转发
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.MESSAGE, data)
+  })
+
+  // 监听设备音频数据，转发给渲染进程
+  addEventListener('deviceAudioData', (data) => {
+    windowManager.broadcast(IPC_CHANNELS.DEVICE.AUDIO_DATA, data)
+  })
+
+  // SDK初始化完成后，主动查询已连接设备状态
+  // 因为SDK的连接回调只对初始化后发生的连接事件生效
+  const connectedCount = getConnectedDeviceCount()
+  console.log('[SDK] Already connected devices count:', connectedCount)
+
+  console.log('[SDK] Device SDK initialized and event listeners registered')
 }
 
 /**

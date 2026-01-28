@@ -3,4 +3,4 @@
  */
 
 export { IPC_CHANNELS } from './channels'
-export { registerAllHandlers, shutdownSDK } from './handlers'
+export { registerAllHandlers, shutdownSDK, initDeviceSDK } from './handlers'
