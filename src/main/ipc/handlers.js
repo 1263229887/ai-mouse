@@ -3,7 +3,7 @@
  * 统一注册所有 IPC 事件处理
  */
 
-import { ipcMain, app, nativeTheme, clipboard } from 'electron'
+import { ipcMain, app, nativeTheme, clipboard, systemPreferences, dialog, shell } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import {
   windowManager,
@@ -541,6 +541,65 @@ function registerClipboardHandlers() {
 
 // ==================== 模拟粘贴操作 ====================
 
+// macOS 辅助功能权限弹窗状态（避免重复弹窗）
+let accessibilityDialogShown = false
+
+/**
+ * 检查 macOS 辅助功能权限
+ * 如果没有权限则弹窗提示用户
+ * @returns {Promise<boolean>} 是否有权限
+ */
+async function checkMacAccessibilityPermission() {
+  if (process.platform !== 'darwin') {
+    return true
+  }
+
+  // 检查辅助功能权限（不弹系统提示）
+  const isTrusted = systemPreferences.isTrustedAccessibilityClient(false)
+
+  if (isTrusted) {
+    console.log('[Main] 已获得辅助功能权限')
+    accessibilityDialogShown = false // 重置状态
+    return true
+  }
+
+  console.log('[Main] 未获得辅助功能权限')
+
+  // 避免重复弹窗
+  if (accessibilityDialogShown) {
+    return false
+  }
+
+  accessibilityDialogShown = true
+
+  // 弹窗提示用户
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    title: '需要辅助功能权限',
+    message: '语音输入和语音翻译的粘贴功能需要辅助功能权限',
+    detail:
+      '请在系统设置中授权：\n\n1. 点击“打开系统设置”\n2. 进入「隐私与安全性」>>「辅助功能」\n3. 找到并勾选 ai-mouse',
+    buttons: ['打开系统设置', '稍后设置'],
+    defaultId: 0,
+    cancelId: 1
+  })
+
+  if (result.response === 0) {
+    // 用户点击“打开系统设置”
+    // 直接打开辅助功能设置页面
+    shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    )
+  }
+
+  // 延迟重置弹窗状态，给用户时间操作
+  setTimeout(() => {
+    accessibilityDialogShown = false
+  }, 5000)
+
+  return false
+}
+
 /**
  * 跨平台模拟 Ctrl+V 粘贴操作
  * Windows: 使用 PowerShell SendKeys
@@ -548,10 +607,19 @@ function registerClipboardHandlers() {
  * Linux: 使用 xdotool
  * @returns {Promise<boolean>}
  */
-function simulatePaste() {
-  return new Promise((resolve) => {
-    const platform = process.platform
+async function simulatePaste() {
+  const platform = process.platform
 
+  // macOS 需要先检查辅助功能权限
+  if (platform === 'darwin') {
+    const hasPermission = await checkMacAccessibilityPermission()
+    if (!hasPermission) {
+      console.log('[Main] 粘贴操作已取消：缺少辅助功能权限')
+      return false
+    }
+  }
+
+  return new Promise((resolve) => {
     if (platform === 'win32') {
       // Windows: 使用 PowerShell 的 SendKeys
       const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`
@@ -569,7 +637,11 @@ function simulatePaste() {
       )
     } else if (platform === 'darwin') {
       // macOS: 使用 AppleScript 模拟 Command+V
-      const appleScript = `tell application "System Events" to keystroke "v" using command down`
+      const appleScript = `
+tell application "System Events"
+  keystroke "v" using command down
+end tell
+`
       exec(`osascript -e '${appleScript}'`, (error, stdout, stderr) => {
         if (error) {
           console.error('[Main] 粘贴执行失败:', error)
@@ -599,20 +671,27 @@ function simulatePaste() {
  * @param {number} count - 要删除的字符数量
  * @returns {Promise<boolean>}
  */
-function simulateBackspace(count) {
-  return new Promise((resolve) => {
-    if (!count || count <= 0) {
-      console.log('[Main] 删除字符数无效:', count)
-      resolve(true)
-      return
+async function simulateBackspace(count) {
+  if (!count || count <= 0) {
+    console.log('[Main] 删除字符数无效:', count)
+    return true
+  }
+
+  console.log('[Main] 开始执行退格，删除字符数:', count)
+  const platform = process.platform
+
+  // macOS 需要先检查辅助功能权限
+  if (platform === 'darwin') {
+    const hasPermission = await checkMacAccessibilityPermission()
+    if (!hasPermission) {
+      console.log('[Main] 退格操作已取消：缺少辅助功能权限')
+      return false
     }
+  }
 
-    console.log('[Main] 开始执行退格，删除字符数:', count)
-    const platform = process.platform
-
+  return new Promise((resolve) => {
     if (platform === 'win32') {
       // Windows: 使用 PowerShell 的 SendKeys
-      // 生成多个 {BS} 来确保正确执行
       const bsKeys = '{BS}'.repeat(count)
       const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${bsKeys}')`
       console.log('[Main] PowerShell 命令:', psScript)
@@ -631,7 +710,13 @@ function simulateBackspace(count) {
       )
     } else if (platform === 'darwin') {
       // macOS: 使用 AppleScript 模拟退格键
-      const appleScript = `tell application "System Events" to key code 51 repeat ${count} times`
+      const appleScript = `
+tell application "System Events"
+  repeat ${count} times
+    key code 51
+  end repeat
+end tell
+`
       exec(`osascript -e '${appleScript}'`, (error, stdout, stderr) => {
         if (error) {
           console.error('[Main] 退格执行失败:', error)
