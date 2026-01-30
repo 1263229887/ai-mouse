@@ -4,13 +4,16 @@
     <meta charset="UTF-8" />
     <title>AI Mouse</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-   <meta
+    <!-- 注意: unsafe-eval 是为了支持 libopus.js (WASM) -->
+    <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss: http: https:"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss: http: https:"
     />
     <!-- 录音库 -->
     <script src="/libs/recorder/recorder-core.js"></script>
     <script src="/libs/recorder/pcm.js"></script>
+    <!-- Opus 编码库 (用于 AI 语音助手) -->
+    <script src="/libs/opus/libopus.js"></script>
   </head>
 
   <body>

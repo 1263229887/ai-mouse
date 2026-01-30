@@ -50,6 +50,11 @@ const routes = [
     path: '/mini/voice-input',
     name: 'MiniVoiceInput',
     component: () => import('@/views/VoiceInput/index.vue')
+  },
+  {
+    path: '/mini/ai-assistant',
+    name: 'MiniAIAssistant',
+    component: () => import('@/views/AIAssistant/index.vue')
   }
 ]
 

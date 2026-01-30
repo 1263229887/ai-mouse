@@ -161,6 +161,24 @@ function initDeviceListeners() {
     }
   })
 }
+
+/**
+ * 点击AI语音助手卡片 - 临时开发测试入口
+ * 只打开窗口，小窗口组件负责初始化和启动录音
+ */
+async function handleAIAssistantClick() {
+  console.log('[Dashboard] 点击AI语音助手卡片，打开小窗口')
+  // 打开AI语音助手小窗口（小窗口组件会自己初始化和启动录音）
+  await window.api?.window?.openAIAssistantWindow()
+}
+
+/**
+ * 点击AI工具集卡片
+ */
+function handleAIToolsClick() {
+  console.log('[Dashboard] 点击AI工具集卡片，功能待开发')
+  // TODO: 功能待开发
+}
 </script>
 
 <template>
@@ -222,6 +240,16 @@ function initDeviceListeners() {
             @change="handleTranslateTargetChange"
           />
         </div>
+      </div>
+
+      <!-- AI语音助手卡片 -->
+      <div class="feature-card simple-card" @click="handleAIAssistantClick">
+        <h2 class="card-title-center">AI语音助手</h2>
+      </div>
+
+      <!-- AI工具集卡片 -->
+      <div class="feature-card simple-card" @click="handleAIToolsClick">
+        <h2 class="card-title-center">AI工具集</h2>
       </div>
     </div>
   </div>
@@ -306,8 +334,9 @@ function initDeviceListeners() {
 }
 
 .cards-wrapper {
-  display: flex;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(1rem, 2vw, 1.5rem);
   align-items: center;
   justify-content: center;
 }
@@ -318,13 +347,29 @@ function initDeviceListeners() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: clamp(22rem, 38vw, 32rem); // 放宽卡片 ~512px
-  height: clamp(18rem, 32vh, 22rem); // ~320px+
+  width: clamp(14rem, 24vw, 18rem); // 缩小卡片
+  height: clamp(11rem, 20vh, 14rem); // 缩小高度
   border-radius: clamp(0.75rem, 1.5vw, 1rem); // ~16px
   background: linear-gradient(141.56deg, #24f1dd2b 13.73%, #07b2fa2b 88.57%);
   backdrop-filter: blur(150px);
-  padding: clamp(2rem, 4vh, 2.5rem) clamp(1.5rem, 3vw, 2rem);
+  padding: clamp(1rem, 2vh, 1.5rem) clamp(1rem, 2vw, 1.5rem);
   box-sizing: border-box;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &.simple-card {
+    cursor: pointer;
+
+    &:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(36, 241, 221, 0.2);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
 }
 
 .card-title {
@@ -333,17 +378,29 @@ function initDeviceListeners() {
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;
-  font-size: clamp(1.25rem, 2.2vw, 1.5rem); // ~24px
+  font-size: clamp(1rem, 1.8vw, 1.25rem); // 缩小字体
   font-weight: 500;
   color: #ffffff;
   margin: 0;
-  margin-bottom: clamp(1.25rem, 2.5vh, 1.75rem);
+  margin-bottom: clamp(0.75rem, 1.5vh, 1rem);
+}
+
+.card-title-center {
+  font-family:
+    'PingFang SC',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
 }
 
 .card-icon {
-  width: clamp(5rem, 10vw, 7.25rem); // ~116px
-  height: clamp(5rem, 10vw, 7.25rem);
-  margin-bottom: clamp(1.25rem, 2.5vh, 1.75rem);
+  width: clamp(3rem, 6vw, 4.5rem); // 缩小图标
+  height: clamp(3rem, 6vw, 4.5rem);
+  margin-bottom: clamp(0.75rem, 1.5vh, 1rem);
 
   img {
     width: 100%;
@@ -353,8 +410,8 @@ function initDeviceListeners() {
 }
 
 .language-select {
-  width: clamp(12rem, 20vw, 15rem); // 放宽选择框 ~240px
-  height: clamp(2rem, 3.5vh, 2.5rem); // ~40px
+  width: clamp(10rem, 16vw, 12rem); // 缩小选择框
+  height: clamp(1.75rem, 3vh, 2rem); // 缩小高度
 
   :deep(.select-trigger) {
     height: 100%;
@@ -394,16 +451,16 @@ function initDeviceListeners() {
 .translate-selects {
   display: flex;
   align-items: center;
-  gap: clamp(0.5rem, 1vw, 0.75rem);
+  gap: clamp(0.375rem, 0.8vw, 0.5rem);
 
   .language-select {
-    width: clamp(8.5rem, 14vw, 10.5rem); // 翻译选择框更窄 ~168px
+    width: clamp(6rem, 10vw, 7.5rem); // 翻译选择框更窄
   }
 }
 
 .swap-btn {
-  width: clamp(1.5rem, 3vw, 2rem); // ~32px
-  height: clamp(1.5rem, 3vw, 2rem);
+  width: clamp(1.25rem, 2.5vw, 1.5rem); // 缩小交换按钮
+  height: clamp(1.25rem, 2.5vw, 1.5rem);
   border: none;
   background: transparent;
   cursor: pointer;

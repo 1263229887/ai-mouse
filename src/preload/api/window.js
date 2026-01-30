@@ -12,7 +12,9 @@ export const MiniWindowType = {
   BUSINESS_A: 'mini-business-a',
   BUSINESS_B: 'mini-business-b',
   BUSINESS_C: 'mini-business-c',
-  VOICE_TRANSLATE: 'mini-voice-translate'
+  VOICE_TRANSLATE: 'mini-voice-translate',
+  VOICE_INPUT: 'mini-voice-input',
+  AI_ASSISTANT: 'mini-ai-assistant'
 }
 
 export const windowApi = {
@@ -21,6 +23,12 @@ export const windowApi = {
    * @param {string} type - 窗口类型，使用 MiniWindowType
    */
   createMini: (type) => ipcRenderer.invoke('window:create-mini', type),
+
+  /**
+   * 打开 AI 语音助手窗口
+   */
+  openAIAssistantWindow: () =>
+    ipcRenderer.invoke('window:create-mini', MiniWindowType.AI_ASSISTANT),
 
   /**
    * 关闭窗口
@@ -44,6 +52,19 @@ export const windowApi = {
    * @param {number} deltaY - Y轴位移
    */
   moveBy: (deltaX, deltaY) => ipcRenderer.send('window:move-by', { deltaX, deltaY }),
+
+  /**
+   * 调整窗口高度
+   * @param {number} height - 目标高度
+   * @param {boolean} animate - 是否动画过渡
+   */
+  setHeight: (height, animate = true) => ipcRenderer.send('window:set-height', { height, animate }),
+
+  /**
+   * 获取窗口信息
+   * @returns {Promise<{x: number, y: number, width: number, height: number, maxHeight: number}>}
+   */
+  getBounds: () => ipcRenderer.invoke('window:get-bounds'),
 
   /**
    * 监听窗口状态变化

@@ -9,9 +9,9 @@ import { useDeviceStore, KEY_INDEX, BUSINESS_MODE, RECORDING_SOURCE } from '@/st
 const deviceStore = useDeviceStore()
 const { keyMappings, recordingSource } = storeToRefs(deviceStore)
 
-// 业务模式选项（临时去掉AI语音助手）
+// 业务模式选项
 const modeOptions = [
-  // { label: 'AI语音助手', value: BUSINESS_MODE.AI_ASSISTANT }, // 临时隐藏
+  { label: 'AI语音助手', value: BUSINESS_MODE.AI_ASSISTANT },
   { label: '语音输入', value: BUSINESS_MODE.VOICE_INPUT },
   { label: '语音翻译', value: BUSINESS_MODE.VOICE_TRANSLATE }
 ]

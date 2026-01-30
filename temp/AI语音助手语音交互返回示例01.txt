@@ -1,0 +1,1338 @@
+[AIAssistantWS] 发送 hello: {type: 'hello', version: 1, transport: 'websocket', audio_params: {…}, extend_params: {…}}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'hello', version: 1, transport: 'websocket', audio_params: {…}, session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "hello",
+  "version": 1,
+  "transport": "websocket",
+  "audio_params": {
+    "format": "opus",
+    "sample_rate": 16000,
+    "channels": 1,
+    "frame_duration": 60
+  },
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'stt-final', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "stt-final",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'asr', start: 'receive', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "asr",
+  "start": "receive",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'stt', text: '真震惊。', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "stt",
+  "text": "真震惊。",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'stt', text: '天气怎么', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "stt",
+  "text": "天气怎么",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'stt-offline', text: '深圳今天天气怎么样？', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "stt-offline",
+  "text": "深圳今天天气怎么样？",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'stt-final', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "stt-final",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'llm', text: '😊', emotion: 'happy', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "llm",
+  "text": "😊",
+  "emotion": "happy",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'function_call', target: 'weather', action: 'query', id: 'query_weather', params: {…}}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "function_call",
+  "target": "weather",
+  "action": "query",
+  "id": "query_weather",
+  "params": {
+    "current": {
+      "city": "深圳",
+      "province": "深圳市",
+      "temperature": "17",
+      "weather": "阴",
+      "windpower": "北风2级",
+      "humidity": "湿度77%",
+      "temperature_min": "15",
+      "temperature_max": "21"
+    },
+    "forecasts": [
+      {
+        "date_as": "今天",
+        "date": "1月30日",
+        "weather": "小雨",
+        "windpower": "小于3级无持续风向",
+        "temperature_min": "15",
+        "temperature_max": "21"
+      },
+      {
+        "date_as": "明天",
+        "date": "1月31日",
+        "weather": "多云",
+        "windpower": "小于3级无持续风向",
+        "temperature_min": "11",
+        "temperature_max": "22"
+      },
+      {
+        "date_as": "星期日",
+        "date": "2月1日",
+        "weather": "晴",
+        "windpower": "小于3级无持续风向",
+        "temperature_min": "12",
+        "temperature_max": "20"
+      },
+      {
+        "date_as": "星期一",
+        "date": "2月2日",
+        "weather": "晴",
+        "windpower": "小于3级无持续风向",
+        "temperature_min": "13",
+        "temperature_max": "21"
+      }
+    ]
+  }
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'start', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "start",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'sentence_start', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c', text: '深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。'}session_id: "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"state: "sentence_start"text: "深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。"type: "tts"[[Prototype]]: Object
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "sentence_start",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c",
+  "text": "深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。"
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 95 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 147 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 142 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 124 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 153 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 115 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 149 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 125 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 125 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 152 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 143 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 136 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 156 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 129 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 130 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 117 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 121 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 116 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 138 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 139 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 98 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 110 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 101 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 110 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 134 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 153 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 108 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 140 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 120 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 128 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 120 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 129 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 103 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 111 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 116 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 92 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 35 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 22 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 97 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 137 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 152 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 155 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 116 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 151 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 133 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 161 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 125 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 140 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 143 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 119 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 150 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 115 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 128 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 122 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 147 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 143 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 107 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 121 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 126 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 122 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 109 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 139 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 45 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 29 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 111 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 146 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 144 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 144 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 149 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 140 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 142 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 136 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 146 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 99 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 108 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 111 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 143 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 128 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 136 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 134 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 130 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 129 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 117 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 116 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 117 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 149 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 117 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 129 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 139 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 74 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 29 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 27 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 93 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 150 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 147 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 155 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 126 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 134 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 152 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 126 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 137 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 131 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 142 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 136 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 108 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 115 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 121 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 107 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 46 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 24 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'sentence_end', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c', text: '深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。'}session_id: "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"state: "sentence_end"text: "深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。"type: "tts"[[Prototype]]: Object
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "sentence_end",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c",
+  "text": "深圳今天（1月30日）有小雨，气温在15到21度之间，当前气温为17.8度，体感温度17度。"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'sentence_start', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c', text: '建议外出时携带雨具，注意防雨和保暖。'}session_id: "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"state: "sentence_start"text: "建议外出时携带雨具，注意防雨和保暖。"type: "tts"[[Prototype]]: Objectconstructor: ƒ Object()hasOwnProperty: ƒ hasOwnProperty()isPrototypeOf: ƒ isPrototypeOf()propertyIsEnumerable: ƒ propertyIsEnumerable()toLocaleString: ƒ toLocaleString()toString: ƒ toString()valueOf: ƒ valueOf()__defineGetter__: ƒ __defineGetter__()__defineSetter__: ƒ __defineSetter__()__lookupGetter__: ƒ __lookupGetter__()__lookupSetter__: ƒ __lookupSetter__()__proto__: (...)get __proto__: ƒ __proto__()set __proto__: ƒ __proto__()
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "sentence_start",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c",
+  "text": "建议外出时携带雨具，注意防雨和保暖。"
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 110 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 149 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 110 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 116 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 142 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 148 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 109 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 149 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 139 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 159 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 145 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 129 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 125 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 119 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 115 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 112 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 122 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 111 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 128 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 98 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 143 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 120 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 126 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 121 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 123 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 69 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 28 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 61 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 160 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 138 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 147 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 132 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 135 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 134 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 126 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 145 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 113 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 115 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 122 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 138 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 153 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 146 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 121 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 127 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 125 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 120 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 142 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 120 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 141 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 102 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 118 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 110 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 113 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 128 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 76 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 31 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 22 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:66 [AIAssistantWS] 收到二进制音频数据: 21 字节
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "audio_data",
+  "data": {}
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'sentence_end', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c', text: '建议外出时携带雨具，注意防雨和保暖。'}session_id: "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"state: "sentence_end"text: "建议外出时携带雨具，注意防雨和保暖。"type: "tts"[[Prototype]]: Object
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "sentence_end",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c",
+  "text": "建议外出时携带雨具，注意防雨和保暖。"
+}
+websocket.js:74 [AIAssistantWS] 收到消息: {type: 'tts', state: 'stop', session_id: 'aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c'}
+index.vue:56 [AI语音助手] 收到完整消息: {
+  "type": "tts",
+  "state": "stop",
+  "session_id": "aa1ee44e-e21b-4fcf-9b39-c9a366b46a6c"
+}

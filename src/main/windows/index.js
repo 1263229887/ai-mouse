@@ -11,5 +11,6 @@ export {
   createBusinessBWindow,
   createBusinessCWindow,
   createVoiceTranslateWindow,
-  createVoiceInputWindow
+  createVoiceInputWindow,
+  createAIAssistantWindow
 } from './miniWindow'

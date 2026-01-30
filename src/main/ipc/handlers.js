@@ -12,6 +12,7 @@ import {
   createBusinessCWindow,
   createVoiceTranslateWindow,
   createVoiceInputWindow,
+  createAIAssistantWindow,
   MiniWindowType
 } from '../windows'
 import {
@@ -52,6 +53,9 @@ function registerWindowHandlers() {
         break
       case MiniWindowType.VOICE_INPUT:
         createVoiceInputWindow()
+        break
+      case MiniWindowType.AI_ASSISTANT:
+        createAIAssistantWindow()
         break
       default:
         console.warn(`Unknown mini window type: ${type}`)
@@ -99,6 +103,49 @@ function registerWindowHandlers() {
       const [x, y] = win.getPosition()
       win.setPosition(x + deltaX, y + deltaY)
     }
+  })
+
+  // 调整窗口高度
+  ipcMain.on(IPC_CHANNELS.WINDOW.SET_HEIGHT, (event, { height, animate }) => {
+    const webContents = event.sender
+    const win = require('electron').BrowserWindow.fromWebContents(webContents)
+    if (win) {
+      const bounds = win.getBounds()
+      const screenHeight = require('electron').screen.getPrimaryDisplay().workAreaSize.height
+
+      // 限制最大高度为屏幕 60%
+      const maxHeight = Math.floor(screenHeight * 0.6)
+      const newHeight = Math.min(Math.max(height, 200), maxHeight)
+
+      // 计算新的 Y 位置，保持窗口底部位置不变
+      const deltaHeight = newHeight - bounds.height
+      const newY = bounds.y - deltaHeight
+
+      win.setBounds(
+        {
+          x: bounds.x,
+          y: Math.max(newY, 0), // 确保不超出屏幕顶部
+          width: bounds.width,
+          height: newHeight
+        },
+        animate !== false
+      )
+    }
+  })
+
+  // 获取窗口信息
+  ipcMain.handle(IPC_CHANNELS.WINDOW.GET_BOUNDS, (event) => {
+    const webContents = event.sender
+    const win = require('electron').BrowserWindow.fromWebContents(webContents)
+    if (win) {
+      const bounds = win.getBounds()
+      const screenHeight = require('electron').screen.getPrimaryDisplay().workAreaSize.height
+      return {
+        ...bounds,
+        maxHeight: Math.floor(screenHeight * 0.6)
+      }
+    }
+    return null
   })
 }
 
@@ -175,10 +222,10 @@ const RECORDING_SOURCE = {
 let deviceConfig = {
   recordingSource: RECORDING_SOURCE.COMPUTER, // 默认电脑录音
   keyMappings: {
-    [KEY_INDEX.VOICE_CLICK]: BUSINESS_MODE.VOICE_INPUT,
+    [KEY_INDEX.VOICE_CLICK]: BUSINESS_MODE.AI_ASSISTANT, // 语音键单击默认 AI 语音助手
     [KEY_INDEX.VOICE_LONG_PRESS]: BUSINESS_MODE.VOICE_TRANSLATE,
-    [KEY_INDEX.AI_CLICK]: BUSINESS_MODE.AI_ASSISTANT,
-    [KEY_INDEX.AI_LONG_PRESS]: BUSINESS_MODE.AI_ASSISTANT
+    [KEY_INDEX.AI_CLICK]: BUSINESS_MODE.VOICE_INPUT,
+    [KEY_INDEX.AI_LONG_PRESS]: BUSINESS_MODE.VOICE_TRANSLATE
   }
 }
 
@@ -327,8 +374,8 @@ function startRecording(deviceId, keyIndex, businessMode) {
       createVoiceInputWindow()
       break
     case BUSINESS_MODE.AI_ASSISTANT:
-      console.log('[Main] AI助手 - 待实现')
-      // TODO: 创建 AI 助手窗口
+      console.log('[Main] 创建 AI 语音助手小窗口')
+      createAIAssistantWindow()
       break
   }
 
@@ -367,6 +414,12 @@ function stopRecording() {
   if (currentRecordingState.businessMode === BUSINESS_MODE.VOICE_INPUT) {
     console.log('[Main] 通知语音输入小窗口关闭')
     windowManager.sendTo(MiniWindowType.VOICE_INPUT, 'voice-input:close', {})
+  }
+
+  // 如果是 AI 语音助手，通知小窗口关闭
+  if (currentRecordingState.businessMode === BUSINESS_MODE.AI_ASSISTANT) {
+    console.log('[Main] 通知 AI 语音助手小窗口关闭')
+    windowManager.sendTo(MiniWindowType.AI_ASSISTANT, 'ai-assistant:close', {})
   }
 
   // 重置状态

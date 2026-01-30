@@ -96,7 +96,7 @@ export const useDeviceStore = defineStore('device', () => {
 
   // 初始化默认按键映射
   function initDefaultKeyMappings() {
-    keyMappings.value[KEY_INDEX.VOICE_CLICK] = BUSINESS_MODE.VOICE_INPUT
+    keyMappings.value[KEY_INDEX.VOICE_CLICK] = BUSINESS_MODE.AI_ASSISTANT // 语音键单击默认 AI 语音助手
     keyMappings.value[KEY_INDEX.VOICE_LONG_PRESS] = BUSINESS_MODE.VOICE_TRANSLATE
     keyMappings.value[KEY_INDEX.AI_CLICK] = BUSINESS_MODE.VOICE_INPUT
     keyMappings.value[KEY_INDEX.AI_LONG_PRESS] = BUSINESS_MODE.VOICE_TRANSLATE

@@ -17,7 +17,11 @@ export const IPC_CHANNELS = {
     // 窗口状态变化
     STATE_CHANGED: 'window:state-changed',
     // 移动窗口（相对位移）
-    MOVE_BY: 'window:move-by'
+    MOVE_BY: 'window:move-by',
+    // 调整窗口高度
+    SET_HEIGHT: 'window:set-height',
+    // 获取窗口信息
+    GET_BOUNDS: 'window:get-bounds'
   },
 
   // ============ 应用相关 ============

@@ -27,7 +27,9 @@ export const MiniWindowType = {
   // 语音翻译
   VOICE_TRANSLATE: 'mini-voice-translate',
   // 语音输入
-  VOICE_INPUT: 'mini-voice-input'
+  VOICE_INPUT: 'mini-voice-input',
+  // AI 语音助手
+  AI_ASSISTANT: 'mini-ai-assistant'
 }
 
 /**
@@ -186,6 +188,33 @@ export function createVoiceInputWindow(options = {}) {
   // 窗口关闭时检测并关闭麦克风
   win.on('closed', () => {
     checkAndDisableMicrophone('VoiceInput')
+  })
+
+  return win
+}
+
+/**
+ * 创建 AI 语音助手小窗口
+ * @param {object} options - 额外配置
+ * @returns {BrowserWindow}
+ */
+export function createAIAssistantWindow(options = {}) {
+  // 获取屏幕工作区域高度
+  const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
+  const maxWindowHeight = Math.floor(screenHeight * 0.6) // 最高 60% 屏幕高度
+
+  const win = createMiniWindow(MiniWindowType.AI_ASSISTANT, '/mini/ai-assistant', {
+    width: 380,
+    height: 360, // 初始高度
+    minHeight: 280,
+    maxHeight: maxWindowHeight,
+    transparent: true, // 透明背景，由 Vue 界面控制背景色
+    ...options
+  })
+
+  // 窗口关闭时检测并关闭麦克风
+  win.on('closed', () => {
+    checkAndDisableMicrophone('AIAssistant')
   })
 
   return win
