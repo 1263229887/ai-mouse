@@ -1,6 +1,6 @@
 /**
  * 数字人后管 API
- * 用于获取 AI 语音助手的人设配置
+ * 用于获取 AI 语音助手的人设配置和应用映射
  */
 
 import { useAuthStore } from '@/stores'
@@ -74,9 +74,34 @@ export async function getCharacterSettingList() {
 }
 
 /**
+ * 获取应用映射列表
+ * @returns {Promise<Array>} 应用映射列表
+ */
+export async function getInstructMappingList() {
+  const url = `${BASE_URL}/instructMapping/list?pageNo=1&pageSize=999`
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: createHeaders()
+  })
+
+  if (!response.ok) {
+    throw new Error(`获取应用映射列表失败: ${response.status}`)
+  }
+
+  const result = await response.json()
+
+  if (result.success && result.data) {
+    return result.data
+  }
+
+  throw new Error(result.message || '获取应用映射列表失败')
+}
+
+/**
  * 获取 AI 语音助手配置
  * 根据场景ID获取关联的助手人设信息
- * @returns {Promise<{systemPrompt: string, sceneId: string, prologue: string}>}
+ * @returns {Promise<{systemPrompt: string, sceneId: string, prologue: string, associationInstruct: string}>}
  */
 export async function getAIAssistantConfig() {
   // 从环境变量获取场景ID
@@ -126,6 +151,7 @@ export async function getAIAssistantConfig() {
   return {
     systemPrompt: targetCharacter.characterDesign || '',
     sceneId: targetCharacter.id,
-    prologue: targetCharacter.prologue || ''
+    prologue: targetCharacter.prologue || '',
+    associationInstruct: targetCharacter.associationInstruct || ''
   }
 }

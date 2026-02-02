@@ -29,3 +29,4 @@ export {
   quitAndInstall,
   getIsUpdating
 } from './updater'
+export { openLocalApp, openUrl, checkAppInstalled } from './appLauncher'

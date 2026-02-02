@@ -6,6 +6,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getAIAssistantService } from '@/services'
 import { useAIAssistantStore } from '@/stores'
+import { handleFunctionCall } from '@/services/aiAssistant/appService'
 
 // AI 语音助手服务实例
 const aiAssistantService = getAIAssistantService()
@@ -521,8 +522,38 @@ const handleMessage = (data) => {
       }
       break
 
+    case 'function_call':
+      // 处理 function_call（打开应用等）
+      handleFunctionCallMessage(data)
+      break
+
     default:
       break
+  }
+}
+
+// 处理 function_call 消息（打开应用等）
+const handleFunctionCallMessage = async (data) => {
+  console.log('[AI语音助手] 处理 function_call:', data)
+
+  try {
+    const result = await handleFunctionCall(data)
+
+    if (result) {
+      // 将处理结果作为 AI 消息显示
+      chatMessages.value.push({
+        role: 'assistant',
+        content: result.message
+      })
+      scrollToBottom()
+    }
+  } catch (error) {
+    console.error('[AI语音助手] function_call 处理失败:', error)
+    chatMessages.value.push({
+      role: 'assistant',
+      content: '操作执行失败，请重试'
+    })
+    scrollToBottom()
   }
 }
 

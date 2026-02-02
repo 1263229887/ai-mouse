@@ -28,7 +28,10 @@ import {
   quitAndInstall,
   setDeviceMicrophoneEnable,
   getAudioEnable,
-  getConnectedDeviceCount
+  getConnectedDeviceCount,
+  openLocalApp,
+  openUrl,
+  checkAppInstalled
 } from '../services'
 import { exec } from 'child_process'
 
@@ -813,7 +816,37 @@ export function registerAllHandlers() {
   registerCryptoHandlers()
   registerUpdaterHandlers()
   registerClipboardHandlers()
+  registerAppLauncherHandlers()
 
   // 保留原有的 ping 测试
   ipcMain.on('ping', () => console.log('pong'))
+}
+
+// ==================== 应用打开相关 ====================
+
+/**
+ * 注册应用打开相关 IPC
+ * 实际处理逻辑已抽离到 services/appLauncher.js
+ */
+function registerAppLauncherHandlers() {
+  // 打开本地应用
+  ipcMain.handle(
+    IPC_CHANNELS.APP_LAUNCHER.OPEN_APP,
+    async (event, { appName, winExeName, macAppName, macBundleId }) => {
+      return openLocalApp({ appName, winExeName, macAppName, macBundleId })
+    }
+  )
+
+  // 打开网页
+  ipcMain.handle(IPC_CHANNELS.APP_LAUNCHER.OPEN_URL, async (event, url) => {
+    return openUrl(url)
+  })
+
+  // 检查应用是否安装
+  ipcMain.handle(
+    IPC_CHANNELS.APP_LAUNCHER.CHECK_APP_INSTALLED,
+    async (event, { winExeName, macAppName, macBundleId }) => {
+      return checkAppInstalled({ winExeName, macAppName, macBundleId })
+    }
+  )
 }

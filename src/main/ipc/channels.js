@@ -138,5 +138,15 @@ export const IPC_CHANNELS = {
     ERROR: 'updater:error',
     // 退出并安装
     QUIT_AND_INSTALL: 'updater:quit-and-install'
+  },
+
+  // ============ 应用打开相关 ============
+  APP_LAUNCHER: {
+    // 打开本地应用
+    OPEN_APP: 'app-launcher:open-app',
+    // 打开网页
+    OPEN_URL: 'app-launcher:open-url',
+    // 检查应用是否安装
+    CHECK_APP_INSTALLED: 'app-launcher:check-installed'
   }
 }

@@ -173,11 +173,20 @@ async function handleAIAssistantClick() {
 }
 
 /**
- * 点击AI工具集卡片
+ * 点击AI工具集卡片 - 临时测试打开应用
  */
-function handleAIToolsClick() {
-  console.log('[Dashboard] 点击AI工具集卡片，功能待开发')
-  // TODO: 功能待开发
+async function handleAIToolsClick() {
+  console.log('[Dashboard] 点击AI工具集卡片，测试打开QQ')
+  const result = await window.api?.appLauncher?.openApp({
+    appName: 'QQ',
+    winExeName: 'QQ.exe',
+    macAppName: 'QQ.app',
+    macBundleId: 'com.tencent.qq'
+  })
+  console.log('[Dashboard] 打开结果:', result)
+  if (!result?.success) {
+    alert(result?.error || '打开失败')
+  }
 }
 </script>
 
