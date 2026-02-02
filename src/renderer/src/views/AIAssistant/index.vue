@@ -5,9 +5,13 @@
  */
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getAIAssistantService } from '@/services'
+import { useAIAssistantStore } from '@/stores'
 
 // AI 语音助手服务实例
 const aiAssistantService = getAIAssistantService()
+
+// AI 助手配置 Store
+const aiAssistantStore = useAIAssistantStore()
 
 // 录音状态
 const isRecording = ref(false)
@@ -637,6 +641,14 @@ onMounted(async () => {
   window.electron?.ipcRenderer?.on('ai-assistant:close', () => {
     handleClose()
   })
+
+  // 添加开场白作为第一条 AI 消息
+  if (aiAssistantStore.prologue) {
+    chatMessages.value.push({
+      role: 'assistant',
+      content: aiAssistantStore.prologue
+    })
+  }
 
   // 延迟启动，让用户有时间打开控制台查看网络请求
   recordingStatus.value = `${delayCountdown.value} 秒后连接...`

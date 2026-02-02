@@ -36,8 +36,6 @@ export const useLanguageStore = defineStore('language', () => {
 
       // 保存原始列表
       rawLanguageList.value = allList
-      console.log('[Language] 原始语言列表 rawLanguageList:', allList)
-
       // 平铺处理：展开 countryList
       languageList.value = allList.flatMap((item) => {
         if (Array.isArray(item.countryList) && item.countryList.length) {
@@ -56,10 +54,7 @@ export const useLanguageStore = defineStore('language', () => {
           }
         }
       })
-      console.log('[Language] 平铺后的 languageList:', languageList.value)
-
       isLoaded.value = true
-      console.log('[Language] 语言列表加载成功:', languageList.value.length, '条')
     } catch (error) {
       console.error('[Language] 获取语言列表失败:', error)
       languageList.value = []

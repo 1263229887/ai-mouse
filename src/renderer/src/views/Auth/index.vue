@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
-import { useDeviceStore, useAuthStore, useLanguageStore } from '@/stores'
+import { useDeviceStore, useAuthStore, useLanguageStore, useAIAssistantStore } from '@/stores'
 import { activateDevice } from '@/api'
 import SvgIcon from '@/components/SvgIcon/index.vue'
 
@@ -17,6 +17,9 @@ const authStore = useAuthStore()
 
 // 语言列表
 const languageStore = useLanguageStore()
+
+// AI 助手配置
+const aiAssistantStore = useAIAssistantStore()
 
 // 判断是否在菜单栏内（通过路由路径判断）
 const isInMenu = computed(() => route.path.startsWith('/main'))
@@ -114,6 +117,10 @@ async function checkAndActivateDevice() {
     // 授权成功后立即加载语言列表
     languageStore.fetchLanguageList()
     console.log('[Auth] 授权成功，开始加载语言列表')
+
+    // 授权成功后立即加载 AI 助手配置
+    aiAssistantStore.fetchConfig()
+    console.log('[Auth] 授权成功，开始加载 AI 助手配置')
   } catch (error) {
     console.error('[Auth] 授权失败:', error)
     authStore.setAuthStatus('failed', error.message)

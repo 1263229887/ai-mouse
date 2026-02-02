@@ -6,6 +6,7 @@
  */
 
 import { OpusEncoder } from './opusEncoder'
+import { useAuthStore, useAIAssistantStore } from '@/stores'
 
 /**
  * AI 语音助手 WebSocket 服务类
@@ -113,6 +114,45 @@ export class AIAssistantWebSocket {
   async _sendHelloMessage() {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false
 
+    // 从 pinia store 获取动态配置
+    const authStore = useAuthStore()
+    const aiAssistantStore = useAIAssistantStore()
+
+    // 等待 AI 助手配置加载完成（最多等待 3 秒）
+    if (!aiAssistantStore.isLoaded && !aiAssistantStore.isLoading) {
+      // 如果还没开始加载，主动触发加载
+      console.log('[AIAssistantWS] AI 助手配置未加载，主动触发加载')
+      aiAssistantStore.fetchConfig()
+    }
+
+    if (aiAssistantStore.isLoading) {
+      console.log('[AIAssistantWS] 等待 AI 助手配置加载完成...')
+      const maxWaitTime = 3000
+      const checkInterval = 100
+      let waited = 0
+
+      while (aiAssistantStore.isLoading && waited < maxWaitTime) {
+        await new Promise((resolve) => setTimeout(resolve, checkInterval))
+        waited += checkInterval
+      }
+
+      if (aiAssistantStore.isLoading) {
+        console.warn('[AIAssistantWS] 等待 AI 助手配置超时，使用当前值')
+      } else {
+        console.log('[AIAssistantWS] AI 助手配置加载完成')
+      }
+    }
+
+    // 获取用户信息
+    const userId = authStore.userInfo?.id || ''
+    const companyId = authStore.userInfo?.tenantId || ''
+
+    // 获取 AI 助手配置
+    const systemPrompt =
+      aiAssistantStore.systemPrompt ||
+      '请扮演由大拿(Dana)开发团队所创建的智能助手，名字叫做小拿。无论在何种情况下，你都需要记住自己的身份，但在对话过程中无需特别强调这一点。当前时间为：${date_time} ${weeks}。 \n注意事项：\n1、请使用中文简体进行回复。 \n2、回答时不得使用任何不礼貌不耐烦或冒犯性的语言。\n3、对待用户要始终保持友好和尊重的态度，将用户视为你的主人。 \n4、回复风格应符合人机交互的标准模式，避免过于口语化或非正式的表达方式。'
+    const sceneId = aiAssistantStore.sceneId || import.meta.env.VITE_AI_ASSISTANT_SCENE_ID || ''
+
     // 构建 hello 消息
     const helloMessage = {
       type: 'hello',
@@ -127,19 +167,17 @@ export class AIAssistantWebSocket {
 
       extend_params: {
         language: 'ZH',
-        user_id: '1947150171772293120',
+        user_id: userId,
         last_reply: '',
         is_say_hello_play: false,
         speaker_id: '1',
         en_speaker_id: '13',
-        system_prompt:
-          '请扮演由大拿(Dana)开发团队所创建的智能助手，名字叫做小拿。无论在何种情况下，你都需要记住自己的身份，但在对话过程中无需特别强调这一点。当前时间为：${date_time} ${weeks}。 \n注意事项：\n1、请使用中文简体进行回复。 \n2、回答时不得使用任何不礼貌不耐烦或冒犯性的语言。\n3、对待用户要始终保持友好和尊重的态度，将用户视为你的主人。 \n4、回复风格应符合人机交互的标准模式，避免过于口语化或非正式的表达方式。',
+        system_prompt: systemPrompt,
         is_asr_online: true,
-        // scene_id: '2011376998588403714',
-        scene_id: '2011378369609912321',
+        scene_id: sceneId,
         length_scale: '1.0',
         asr_version: 'v2',
-        company_id: '1854468734006071297'
+        company_id: companyId
       }
     }
 

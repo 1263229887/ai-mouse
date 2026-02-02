@@ -29,6 +29,12 @@ export default defineConfig({
           target: 'http://192.168.80.8/studio',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, '')
+        },
+        // 数字人后管接口代理
+        '/digital-human-api': {
+          target: 'http://192.168.80.8:85/studio/meta-human-api',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/digital-human-api/, '')
         }
       }
     },

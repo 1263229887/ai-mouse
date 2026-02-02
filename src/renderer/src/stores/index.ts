@@ -25,3 +25,6 @@ export { useAuthStore } from './modules/auth'
 
 // 语言列表状态
 export { useLanguageStore } from './modules/language'
+
+// AI 语音助手配置状态
+export { useAIAssistantStore } from './modules/aiAssistant'
