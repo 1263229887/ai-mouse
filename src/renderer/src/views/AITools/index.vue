@@ -1,5 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+
+// 等待样式应用后再显示内容
+const isReady = ref(false)
+onMounted(() => {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isReady.value = true
+    })
+  })
+})
 
 // AI工具集页面
 
@@ -660,7 +670,7 @@ const setCategoryRef = (el, categoryId) => {
 </script>
 
 <template>
-  <div class="wh-full px-58 py-28 flex select-none">
+  <div v-show="isReady" class="wh-full px-58 py-28 flex select-none">
     <!-- 左侧分类导航 -->
     <div class="bg-#1B2023 py-16 pl-32 pr-68 rd-8 text-14 shrink-0">
       <div

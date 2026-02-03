@@ -1,5 +1,11 @@
 <script setup>
+import { onMounted } from 'vue'
 import AppNavbar from '@/components/AppNavbar/index.vue'
+
+// 预加载 AITools 组件，避免首次进入时闪烁
+onMounted(() => {
+  import('@/views/AITools/index.vue')
+})
 </script>
 
 <template>
@@ -25,5 +31,6 @@ import AppNavbar from '@/components/AppNavbar/index.vue'
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background-color: #0e1012;
 }
 </style>
