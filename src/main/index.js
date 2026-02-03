@@ -2,7 +2,7 @@
  * 主进程入口
  */
 
-import { app, BrowserWindow, nativeImage } from 'electron'
+import { app, BrowserWindow, nativeImage, globalShortcut, dialog } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createMainWindow } from './windows'
 import { registerAllHandlers, shutdownSDK, initDeviceSDK } from './ipc'
@@ -37,6 +37,9 @@ app.whenReady().then(() => {
 
   // 创建主窗口
   createMainWindow()
+
+  // 注册环境标识快捷键（Ctrl/Cmd+Shift+V）
+  registerEnvShortcut()
 
   // macOS: 点击 Dock 图标重新创建窗口
   app.on('activate', () => {
@@ -80,3 +83,31 @@ app.on('before-quit', (event) => {
     quitWithSDKCleanup()
   }
 })
+
+/**
+ * 注册环境标识快捷键
+ * Windows/Linux: Ctrl+Shift+V
+ * macOS: Cmd+Shift+V
+ * 按下后屏幕居中显示当前环境标识
+ */
+function registerEnvShortcut() {
+  const accelerator = process.platform === 'darwin' ? 'Cmd+Shift+V' : 'Ctrl+Shift+V'
+  const appEnv = import.meta.env.MAIN_VITE_APP_ENV || 'DEV'
+
+  const registered = globalShortcut.register(accelerator, () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Environment',
+      message: appEnv,
+      buttons: ['OK'],
+      defaultId: 0,
+      noLink: true
+    })
+  })
+
+  if (registered) {
+    console.log(`[Main] 环境标识快捷键已注册: ${accelerator} -> ${appEnv}`)
+  } else {
+    console.warn(`[Main] 环境标识快捷键注册失败: ${accelerator}`)
+  }
+}
