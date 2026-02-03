@@ -278,13 +278,34 @@ class KeyEventService {
 
   // ============ AI语音助手业务 ============
   async startAIAssistant() {
-    // TODO: 实现AI语音助手业务
-    console.log('[KeyEventService] AI assistant not implemented yet')
+    try {
+      console.log('[KeyEventService] Starting AI assistant...')
+      this.isRecording = true
+
+      // 打开AI语音助手小窗口（小窗口组件会自己初始化和启动录音）
+      await window.api?.window?.openAIAssistantWindow()
+
+      console.log('[KeyEventService] AI assistant started')
+    } catch (error) {
+      console.error('[KeyEventService] Failed to start AI assistant:', error)
+      this.isRecording = false
+      this.activeBusinessMode = null
+    }
   }
 
   async stopAIAssistant() {
-    // TODO: 停止AI语音助手业务
-    console.log('[KeyEventService] Stop AI assistant not implemented yet')
+    try {
+      console.log('[KeyEventService] Stopping AI assistant...')
+      this.isRecording = false
+
+      // 关闭AI语音助手小窗口
+      await window.api?.window?.closeAIAssistantWindow()
+
+      console.log('[KeyEventService] AI assistant stopped')
+    } catch (error) {
+      console.error('[KeyEventService] Failed to stop AI assistant:', error)
+      this.isRecording = false
+    }
   }
 
   /**

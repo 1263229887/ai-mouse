@@ -5,13 +5,15 @@ import 'element-plus/dist/index.css'
 import router from './router'
 import App from './App.vue'
 
+// UnoCSS
+import 'virtual:uno.css'
+
 // SVG 图标注册
 import 'virtual:svg-icons-register'
 import SvgIcon from './components/SvgIcon/index.vue'
 
-// 样式导入顺序很重要：先主题变量，再全局样式
-import './styles/themes.scss'
-import './styles/global.scss'
+// 全局样式
+import './styles/reset.css'
 
 const app = createApp(App)
 const pinia = createPinia()

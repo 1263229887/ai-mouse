@@ -4,7 +4,6 @@ import {
   windowApi,
   MiniWindowType,
   appApi,
-  themeApi,
   deviceApi,
   cryptoApi,
   updaterApi,
@@ -23,9 +22,6 @@ const api = {
   // 应用操作
   app: appApi,
 
-  // 主题操作
-  theme: themeApi,
-
   // 设备操作
   device: deviceApi,
 
@@ -35,7 +31,7 @@ const api = {
   // 更新操作
   updater: updaterApi,
 
-  // 剩贴板操作
+  // 剪贴板操作
   clipboard: clipboardApi,
 
   // 应用打开操作

@@ -32,6 +32,9 @@ const currentAIText = ref('')
 // 是否正在播放语音
 const isPlaying = ref(false)
 
+// 静音状态
+const isMuted = ref(false)
+
 // 智能滚动控制
 const userScrolledUp = ref(false) // 用户是否手动上滑了
 
@@ -56,6 +59,7 @@ let audioBufferQueue = [] // 存储接收到的音频包
 let isAudioBuffering = false
 let isAudioPlaying = false
 let streamingContext = null
+let masterGainNode = null // 主音量控制节点
 
 // 初始化音频上下文
 const initAudioContext = () => {
@@ -63,6 +67,10 @@ const initAudioContext = () => {
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: SAMPLE_RATE
     })
+    // 创建主音量控制节点
+    masterGainNode = audioContext.createGain()
+    masterGainNode.gain.value = isMuted.value ? 0 : 1
+    masterGainNode.connect(audioContext.destination)
   }
   return audioContext
 }
@@ -277,7 +285,7 @@ const playBufferedAudio = async () => {
           }
 
           source.connect(gainNode)
-          gainNode.connect(audioContext.destination)
+          gainNode.connect(masterGainNode) // 连接到主音量节点而不是直接到 destination
 
           console.log(
             `[AI语音助手] 开始播放 ${currentSamples.length} 个样本，约 ${(currentSamples.length / SAMPLE_RATE).toFixed(2)} 秒`
@@ -375,6 +383,7 @@ const stopAudio = () => {
     opusDecoder.destroy()
     opusDecoder = null
   }
+  masterGainNode = null
   if (audioContext) {
     audioContext.close()
     audioContext = null
@@ -383,6 +392,16 @@ const stopAudio = () => {
 
 // 暴露给关闭时使用
 const cleanupAudio = stopAudio
+
+// 切换静音状态
+const toggleMute = () => {
+  isMuted.value = !isMuted.value
+  // 实时更新音量
+  if (masterGainNode) {
+    masterGainNode.gain.value = isMuted.value ? 0 : 1
+  }
+  console.log('[AI语音助手] 静音状态:', isMuted.value ? '静音' : '播报')
+}
 
 // 丝滑滚动到底部
 const scrollToBottom = () => {
@@ -517,7 +536,8 @@ const handleMessage = (data) => {
 
     case 'llm':
       // LLM 回复（可能包含表情）
-      if (data.text) {
+      // 过滤掉纯表情消息（包含 emotion 字段且 text 为空或只有表情符号）
+      if (data.text && !data.emotion) {
         currentAIText.value = data.text + ' '
       }
       break
@@ -582,7 +602,8 @@ const handleTTSMessage = (data) => {
 
     case 'sentence_end':
       // 句子结束，将该句子作为一条独立的 AI 消息
-      if (text) {
+      // 过滤掉纯表情消息
+      if (text && !data.emotion) {
         chatMessages.value.push({
           role: 'assistant',
           content: text
@@ -595,7 +616,8 @@ const handleTTSMessage = (data) => {
     case 'stop':
       // TTS 结束
       // 如果还有未添加的文字（正常情况下不会）
-      if (currentAIText.value) {
+      // 过滤掉纯表情消息
+      if (currentAIText.value && !data.emotion) {
         chatMessages.value.push({
           role: 'assistant',
           content: currentAIText.value
@@ -822,14 +844,28 @@ const handleMouseUp = () => {
         </div>
       </div>
 
-      <!-- 播报状态栏（底部） -->
-      <div class="bottom-status-bar">
-        <span class="playing-indicator" :class="{ active: isPlaying }">
-          <span class="wave-bar"></span>
-          <span class="wave-bar"></span>
-          <span class="wave-bar"></span>
-          <span class="wave-bar"></span>
-        </span>
+      <!-- 播报/静音状态栏（底部） -->
+      <div class="bottom-status-bar" @click="toggleMute">
+        <!-- 播报中状态 -->
+        <template v-if="!isMuted">
+          <span class="playing-indicator" :class="{ active: isPlaying }">
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+          </span>
+        </template>
+        <!-- 静音状态 -->
+        <template v-else>
+          <span class="mute-indicator">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="mute-icon">
+              <path
+                d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
+              />
+            </svg>
+          </span>
+          <span class="mute-text">你已静音</span>
+        </template>
       </div>
     </div>
   </div>
@@ -926,6 +962,16 @@ const handleMouseUp = () => {
   margin-top: clamp(0.5rem, 1vw, 0.75rem);
   padding-top: clamp(0.375rem, 0.8vw, 0.5rem);
   border-top: 1px solid var(--border-color-light);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  &:active {
+    opacity: 0.6;
+  }
 }
 
 .start-now-btn {
@@ -1128,5 +1174,24 @@ const handleMouseUp = () => {
     transform: scaleY(1);
     opacity: 1;
   }
+}
+
+// 静音指示器
+.mute-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mute-icon {
+  width: clamp(0.875rem, 1.5vw, 1rem);
+  height: clamp(0.875rem, 1.5vw, 1rem);
+  color: var(--text-placeholder);
+}
+
+.mute-text {
+  font-size: clamp(0.7rem, 1.1vw, 0.75rem);
+  color: var(--text-placeholder);
+  margin-left: clamp(0.125rem, 0.3vw, 0.1875rem);
 }
 </style>

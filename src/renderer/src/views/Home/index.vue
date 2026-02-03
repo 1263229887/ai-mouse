@@ -171,7 +171,7 @@ async function initDeviceState() {
 }
 
 /**
- * 初始化设备监听（仅设备连接/断开/消息，按键事件由全局 keyEventService 处理）
+ * 初始化设备监听（仅设备连接/消息，断开由 App.vue 全局处理）
  */
 function initDeviceListeners() {
   // 监听设备连接
@@ -184,14 +184,11 @@ function initDeviceListeners() {
     })
   })
 
-  // 监听设备断开
-  window.api?.device?.onDeviceDisconnected((data) => {
-    console.log('Device disconnected:', data)
+  // 断开处理已由 App.vue 全局统一处理，这里只清理本组件状态
+  window.api?.device?.onDeviceDisconnected(() => {
+    console.log('[Home] Device disconnected')
     stopVendorIdPolling()
     currentDeviceId = null
-    deviceStore.resetDevice()
-    // 设备断开时清除授权状态
-    authStore.clearAuth()
   })
 
   // 监听设备消息（包含设备信息更新）

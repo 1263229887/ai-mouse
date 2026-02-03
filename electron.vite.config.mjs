@@ -2,6 +2,7 @@ import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import { createSvgIconsPlugin } from 'vite-plugin-svg-icons'
+import UnoCSS from 'unocss/vite'
 
 export default defineConfig({
   main: {},
@@ -40,6 +41,7 @@ export default defineConfig({
     },
     plugins: [
       vue(),
+      UnoCSS(),
       createSvgIconsPlugin({
         // SVG 图标存放路径
         iconDirs: [resolve('src/renderer/src/assets/icons')],

@@ -1,8 +1,114 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useThemeStore } from '@/stores'
+import { useRouter, useRoute } from 'vue-router'
+import { useDeviceStore, useAuthStore } from '@/stores'
 
-const themeStore = useThemeStore()
+const router = useRouter()
+const route = useRoute()
+const deviceStore = useDeviceStore()
+const authStore = useAuthStore()
+
+// ============ 全局设备状态管理 ============
+/**
+ * 初始化设备状态
+ * 应用启动时从主进程获取当前设备状态
+ */
+async function initDeviceState() {
+  try {
+    const state = await window.api?.device?.getCurrentState()
+    console.log('[App] 当前设备状态:', state)
+
+    if (state) {
+      // 恢复设备信息到 store
+      deviceStore.updateDeviceInfo({
+        deviceId: state.deviceId,
+        connectionMode: state.connectionMode
+      })
+
+      if (state.serialNumber) {
+        deviceStore.setSerialNumber(state.serialNumber)
+      }
+      if (state.version) {
+        deviceStore.setVersion(state.version)
+      }
+      if (state.vendorId) {
+        deviceStore.setVendorId(state.vendorId)
+      }
+      if (state.isOnline) {
+        deviceStore.setOnlineStatus(true)
+      }
+    }
+  } catch (error) {
+    console.error('[App] 获取设备状态失败:', error)
+  }
+}
+
+/**
+ * 判断当前路由是否需要断开跳转
+ * 小窗口路由不需要跳转，它们有自己的处理逻辑
+ */
+function shouldRedirectOnDisconnect() {
+  const currentPath = route.path
+  // 小窗口路由不需要跳转
+  if (currentPath.startsWith('/mini/')) {
+    return false
+  }
+  // 已经在独立授权页，不需要跳转
+  if (currentPath === '/auth') {
+    return false
+  }
+  return true
+}
+
+/**
+ * 初始化全局设备事件监听
+ */
+function initGlobalDeviceListeners() {
+  // 监听设备连接
+  window.api?.device?.onDeviceConnected((data) => {
+    console.log('[App] Device connected:', data)
+    deviceStore.updateDeviceInfo({
+      deviceId: data.deviceId,
+      connectionMode: data.connectionMode
+    })
+  })
+
+  // 监听设备断开 - 全局统一处理
+  window.api?.device?.onDeviceDisconnected((data) => {
+    console.log('[App] Device disconnected:', data)
+    // 重置设备状态
+    deviceStore.resetDevice()
+    // 清除授权状态
+    authStore.clearAuth()
+    // 判断是否需要跳转到授权页
+    if (shouldRedirectOnDisconnect()) {
+      console.log('[App] 设备断开，跳转到授权页')
+      router.push('/auth')
+    }
+  })
+
+  // 监听设备消息
+  window.api?.device?.onDeviceMessage((data) => {
+    console.log('[App] Device message:', data)
+    const { data: messageData } = data
+
+    if (messageData && messageData.type) {
+      switch (messageData.type) {
+        case 'deviceSN':
+          deviceStore.setSerialNumber(messageData.sn || '')
+          break
+        case 'deviceVersion':
+          deviceStore.setVersion(messageData.version || '')
+          break
+        case 'deviceActive':
+          deviceStore.setOnlineStatus(messageData.active === 1)
+          break
+        default:
+          break
+      }
+    }
+  })
+}
 
 // 按键事件视觉反馈 - 需虹灯带状态
 const showNeonBorder = ref(false)
@@ -34,76 +140,25 @@ function initKeyEventListener() {
   })
 }
 
-// 浮动球位置和拖动状态
-const floatBall = ref(null)
-const isDragging = ref(false)
-const position = ref({ x: 0, y: 0 })
-const dragStart = ref({ x: 0, y: 0 })
-
-// 初始化位置（右下角）
 onMounted(() => {
-  position.value = {
-    x: window.innerWidth - 80,
-    y: window.innerHeight - 80
-  }
   // 初始化按键事件监听
   initKeyEventListener()
+  // 初始化设备状态（从主进程恢复）
+  initDeviceState()
+  // 初始化全局设备事件监听
+  initGlobalDeviceListeners()
 })
-
-// 开始拖动
-const handleMouseDown = (e) => {
-  isDragging.value = true
-  dragStart.value = {
-    x: e.clientX - position.value.x,
-    y: e.clientY - position.value.y
-  }
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
-}
-
-// 拖动中
-const handleMouseMove = (e) => {
-  if (!isDragging.value) return
-
-  const newX = e.clientX - dragStart.value.x
-  const newY = e.clientY - dragStart.value.y
-
-  // 限制在窗口范围内
-  const maxX = window.innerWidth - 60
-  const maxY = window.innerHeight - 60
-
-  position.value = {
-    x: Math.max(0, Math.min(newX, maxX)),
-    y: Math.max(0, Math.min(newY, maxY))
-  }
-}
-
-// 结束拖动
-const handleMouseUp = () => {
-  isDragging.value = false
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
-}
 
 // 组件销毁时清理事件监听
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove)
-  document.removeEventListener('mouseup', handleMouseUp)
   // 清理需虹灯带定时器
   if (neonTimer) {
     clearTimeout(neonTimer)
     neonTimer = null
   }
-  // 移除按键事件监听
-  window.api?.device?.removeKeyEventListener?.()
+  // 移除设备事件监听
+  window.api?.device?.removeAllListeners?.()
 })
-
-// 切换主题
-const handleThemeToggle = () => {
-  if (!isDragging.value) {
-    themeStore.toggleTheme()
-  }
-}
 </script>
 
 <template>
@@ -118,19 +173,6 @@ const handleThemeToggle = () => {
     </div>
 
     <router-view />
-
-    <!-- 可拖动的主题切换浮动球---暂时先不要切换主题了--预留吧 -->
-    <div
-      v-if="false"
-      ref="floatBall"
-      class="theme-float-ball"
-      :class="{ dragging: isDragging }"
-      :style="{ left: `${position.x}px`, top: `${position.y}px` }"
-      @mousedown="handleMouseDown"
-      @click="handleThemeToggle"
-    >
-      <SvgIcon name="theme" :size="24" themed />
-    </div>
   </div>
 </template>
 
@@ -274,41 +316,6 @@ const handleThemeToggle = () => {
   50% {
     opacity: 0.6;
     transform: scale(0.8);
-  }
-}
-
-.theme-float-ball {
-  position: fixed;
-  width: clamp(3rem, 5vw, 3.75rem);
-  height: clamp(3rem, 5vw, 3.75rem);
-  border-radius: 50%;
-  background: var(--card-bg);
-  box-shadow: var(--card-shadow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: move;
-  z-index: 9999;
-  transition:
-    background 0.3s ease,
-    box-shadow 0.3s ease,
-    transform 0.2s ease;
-  user-select: none;
-
-  &:hover {
-    background: var(--bg-color-hover);
-    box-shadow: var(--card-shadow-hover);
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-
-  &.dragging {
-    box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.2);
-    transform: scale(1.1);
-    cursor: grabbing;
   }
 }
 </style>

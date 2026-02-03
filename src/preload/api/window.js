@@ -31,6 +31,11 @@ export const windowApi = {
     ipcRenderer.invoke('window:create-mini', MiniWindowType.AI_ASSISTANT),
 
   /**
+   * 关闭 AI 语音助手窗口
+   */
+  closeAIAssistantWindow: () => ipcRenderer.send('window:close', MiniWindowType.AI_ASSISTANT),
+
+  /**
    * 关闭窗口
    * @param {string} [windowName] - 可选，指定窗口名称；不传则关闭当前窗口
    */

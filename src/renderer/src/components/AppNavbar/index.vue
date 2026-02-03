@@ -9,7 +9,8 @@ const menuItems = [
   { name: '首页', path: '/main/home' },
   { name: '设备授权', path: '/main/auth' },
   { name: '设备设置', path: '/main/settings' },
-  { name: '版本检测', path: '/main/version' }
+  { name: '版本检测', path: '/main/version' },
+  { name: 'AI工具集', path: '/main/ai-tools' }
 ]
 
 const currentPath = computed(() => route.path)
@@ -24,7 +25,7 @@ function isActive(path) {
 </script>
 
 <template>
-  <nav class="app-navbar">
+  <nav class="app-navbar bg-#22282C">
     <div class="menu-items">
       <span
         v-for="item in menuItems"
@@ -47,7 +48,6 @@ function isActive(path) {
 .app-navbar {
   width: 100%;
   height: clamp(2.5rem, 4vh, 3rem); // 40px 左右高度
-  background: var(--bg-color); // 使用主题变量
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -32,14 +32,6 @@ export const IPC_CHANNELS = {
     QUIT: 'app:quit'
   },
 
-  // ============ 主题相关 ============
-  THEME: {
-    // 主题变更通知
-    CHANGED: 'theme:changed',
-    // 获取系统主题
-    GET_SYSTEM: 'theme:get-system'
-  },
-
   // ============ 业务模块A ============
   BUSINESS_A: {
     // 连接 WebSocket

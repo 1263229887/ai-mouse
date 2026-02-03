@@ -188,6 +188,8 @@ async function initDeviceState() {
 
 /**
  * 初始化设备监听
+ * 只监听设备连接和消息（用于厂商ID轮询）
+ * 断开处理已由 App.vue 全局统一处理
  */
 function initDeviceListeners() {
   window.api?.device?.onDeviceConnected((data) => {
@@ -203,13 +205,11 @@ function initDeviceListeners() {
     }
   })
 
-  window.api?.device?.onDeviceDisconnected((data) => {
-    console.log('Device disconnected:', data)
+  // 断开处理已由 App.vue 全局统一处理，这里只需要清理本组件状态
+  window.api?.device?.onDeviceDisconnected(() => {
+    console.log('[Auth] Device disconnected')
     stopVendorIdPolling()
     currentDeviceId = null
-    deviceStore.resetDevice()
-    // 设备断开时清除授权状态，重置授权标志
-    authStore.clearAuth()
     hasCalledAuth = false
   })
 
@@ -251,7 +251,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopVendorIdPolling()
-  window.api?.device?.removeAllListeners()
+  // 注意：不要调用 removeAllListeners()，否则会移除 App.vue 的全局监听器
 })
 
 /**

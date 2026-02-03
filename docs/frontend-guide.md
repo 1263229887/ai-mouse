@@ -4,24 +4,21 @@
 
 ---
 
-## 1. 响应式布局方案
+## 1. 窗口配置
 
-### 1.1 核心策略
-
-采用 **clamp() + rem + Flex/Grid** 组合方案，实现流体响应式布局。
-
-### 1.2 主窗口配置
+### 1.1 主窗口规格
 
 | 配置项 | 值 | 说明 |
 |--------|-----|------|
-| 初始窗口 | 屏幕宽度 66% | 高度按 3:2 比例计算 |
-| 最小窗口 | 屏幕宽度 50% | 高度按 3:2 比例计算 |
-| 宽高比 | 3:2 | 基于 1200×800 标准 |
+| 窗口尺寸 | 1200×800px | 固定尺寸 |
+| 拉伸缩放 | 禁止 | resizable: false |
+| 最大化 | 不支持 | maximizable: false |
+| 操作按钮 | 最小化、关闭 | 无最大化按钮 |
 
-### 1.3 布局规则
+### 1.2 布局规则
 
 ```scss
-// 页面容器必须遵循的规则
+// 页面容器
 .page-container {
   width: 100%;
   height: 100vh;
@@ -40,34 +37,54 @@
 }
 ```
 
-### 1.4 clamp() 使用规范
+### 1.3 尺寸单位
 
-| 用途 | 示例 | 说明 |
-|------|------|------|
-| 字体大小 | `clamp(1rem, 2vw, 1.5rem)` | 最小-理想-最大 |
-| 间距 | `clamp(0.5rem, 2vw, 1rem)` | 响应式间距 |
-| 容器宽度 | `clamp(200px, 25vw, 300px)` | 弹性宽度 |
-
-### 1.5 禁止事项
-
-- ❌ 使用固定像素值（除非是边框、图标等小尺寸）
-- ❌ 出现页面滚动条
-- ❌ 使用媒体查询断点（优先使用 clamp）
+- 使用 `px` 单位（固定窗口尺寸，无需响应式）
+- 可配合 UnoCSS 的原子化类名
 
 ---
 
-## 2. 主题换肤方案
+## 2. 样式方案
 
-### 2.1 架构设计
+### 2.1 UnoCSS
+
+项目已集成 UnoCSS，支持原子化 CSS 和属性化模式。
+
+```vue
+<!-- 原子化类名 -->
+<div class="flex items-center justify-center p-4 bg-[var(--bg-color)]"></div>
+
+<!-- 属性化模式 -->
+<div flex items-center justify-center p-4></div>
+
+<!-- 快捷方式 -->
+<div class="flex-center"></div>
+```
+
+### 2.2 预定义快捷方式
+
+| 快捷方式 | 展开 | 说明 |
+|----------|------|------|
+| `flex-center` | `flex items-center justify-center` | 水平垂直居中 |
+| `flex-col-center` | `flex flex-col items-center justify-center` | 垂直方向居中 |
+| `btn-primary` | `px-4 py-2 rounded bg-[var(--color-primary)] text-white cursor-pointer` | 主按钮 |
+| `card-base` | `rounded-lg bg-[var(--card-bg)] shadow-md` | 基础卡片 |
+
+---
+
+## 3. 主题配色
+
+### 3.1 架构设计
+
+项目固定使用暗色主题，通过 CSS 变量定义颜色。
 
 ```
-主题系统
-├── styles/themes.scss          # CSS 变量定义（light/dark）
-├── stores/modules/theme.ts     # Pinia 状态管理
-└── 组件使用 var(--xxx)         # 通过 CSS 变量引用颜色
+样式系统
+styles/themes.scss          # CSS 变量定义（暗色主题）
+组件使用 var(--xxx)         # 通过 CSS 变量引用颜色
 ```
 
-### 2.2 CSS 变量命名规范
+### 3.2 CSS 变量命名规范
 
 ```scss
 // 颜色类
@@ -96,30 +113,20 @@
 --card-shadow        // 卡片阴影
 ```
 
-### 2.3 组件中使用主题色
+### 3.3 组件中使用
 
 ```vue
 <style scoped>
 .title {
   color: var(--text-primary);
   background: var(--bg-color);
-  transition: color 0.3s ease, background 0.3s ease;
 }
 </style>
 ```
 
-### 2.4 切换主题
-
-```js
-import { useThemeStore } from '@/stores'
-
-const themeStore = useThemeStore()
-themeStore.toggleTheme() // 切换深浅主题
-```
-
 ---
 
-## 3. SVG 图标方案
+## 4. SVG 图标方案
 
 ### 3.1 目录结构
 
@@ -164,9 +171,9 @@ src/renderer/src/assets/
 
 ---
 
-## 4. 文件组织规范
+## 5. 文件组织规范
 
-### 4.1 渲染进程结构
+### 5.1 渲染进程结构
 
 ```
 src/renderer/src/
@@ -180,7 +187,6 @@ src/renderer/src/
 │   ├── index.ts         # 统一导出
 │   └── modules/         # 状态模块
 │       ├── app.js       # 应用状态
-│       ├── theme.ts     # 主题状态
 │       └── user.js      # 用户状态
 ├── styles/              # 全局样式
 │   ├── themes.scss      # 主题变量
@@ -190,7 +196,7 @@ src/renderer/src/
 └── views/               # 页面组件
 ```
 
-### 4.2 主进程结构
+### 5.2 主进程结构
 
 ```
 src/main/
@@ -209,7 +215,7 @@ src/main/
     └── websocket.js     # WebSocket 基类
 ```
 
-### 4.3 预加载脚本结构
+### 5.3 预加载脚本结构
 
 ```
 src/preload/
@@ -217,34 +223,33 @@ src/preload/
 └── api/                 # API 模块
     ├── index.js         # 统一导出
     ├── window.js        # 窗口操作 API
-    ├── app.js           # 应用操作 API
-    └── theme.js         # 主题操作 API
+    └── app.js           # 应用操作 API
 ```
 
 ---
 
-## 5. 代码风格
+## 6. 代码风格
 
 - 使用 **单引号**
 - **不使用分号**
 - 缩进使用 **2 空格**
 - 每行最大 **100 字符**
 
-## 6. 工程代码规范
+## 7. 工程代码规范
 
 - 遵循现代前端工程化、组件化、模块化
 
-### 6.1 模块导入规范
+### 7.1 模块导入规范
 
 ```js
 // ✅ 正确：从统一入口导入 Store
-import { useThemeStore, useUserStore, useAppStore } from '@/stores'
+import { useUserStore, useAppStore } from '@/stores'
 
 // ❌ 错误：直接从模块导入
-import { useThemeStore } from '@/stores/modules/theme'
+import { useUserStore } from '@/stores/modules/user'
 ```
 
-### 6.2 模块拆分原则
+### 7.2 模块拆分原则
 
 - 每个模块单一职责
 - 统一通过 `index.js` 导出

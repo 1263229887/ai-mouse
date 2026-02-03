@@ -3,7 +3,7 @@
  * 统一注册所有 IPC 事件处理
  */
 
-import { ipcMain, app, nativeTheme, clipboard, systemPreferences, dialog, shell } from 'electron'
+import { ipcMain, app, clipboard, systemPreferences, dialog, shell } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import {
   windowManager,
@@ -168,22 +168,6 @@ function registerAppHandlers() {
 }
 
 /**
- * 注册主题相关 IPC
- */
-function registerThemeHandlers() {
-  // 获取系统主题
-  ipcMain.handle(IPC_CHANNELS.THEME.GET_SYSTEM, () => {
-    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-  })
-
-  // 监听系统主题变化，通知所有窗口
-  nativeTheme.on('updated', () => {
-    const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    windowManager.broadcast(IPC_CHANNELS.THEME.CHANGED, theme)
-  })
-}
-
-/**
  * 按键索引常量
  */
 const KEY_INDEX = {
@@ -336,7 +320,11 @@ function startRecording(deviceId, keyIndex, businessMode) {
   })
 
   // 检查业务是否已实现
-  const implementedBusiness = [BUSINESS_MODE.VOICE_TRANSLATE, BUSINESS_MODE.VOICE_INPUT]
+  const implementedBusiness = [
+    BUSINESS_MODE.VOICE_TRANSLATE,
+    BUSINESS_MODE.VOICE_INPUT,
+    BUSINESS_MODE.AI_ASSISTANT
+  ]
   if (!implementedBusiness.includes(businessMode)) {
     console.log('[Main] 业务未实现，跳过:', businessMode)
     return
@@ -811,7 +799,6 @@ export function shutdownSDK() {
 export function registerAllHandlers() {
   registerWindowHandlers()
   registerAppHandlers()
-  registerThemeHandlers()
   registerDeviceHandlers()
   registerCryptoHandlers()
   registerUpdaterHandlers()

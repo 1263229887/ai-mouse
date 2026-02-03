@@ -37,6 +37,11 @@ const routes = [
         path: 'version',
         name: 'Version',
         component: () => import('@/views/Version/index.vue')
+      },
+      {
+        path: 'ai-tools',
+        name: 'AITools',
+        component: () => import('@/views/AITools/index.vue')
       }
     ]
   },
