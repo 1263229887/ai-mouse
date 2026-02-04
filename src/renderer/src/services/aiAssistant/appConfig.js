@@ -32,8 +32,8 @@ export const APP_CONFIG = {
     hasClient: true,
     webUrl: 'https://www.dingtalk.com',
     winExeName: 'DingTalkUpdater.exe',
-    macAppName: '钉钉.app',
-    macBundleId: 'com.alibaba.DingTalkMac'
+    macAppName: 'DingTalk.app',
+    macBundleId: '5ZSL2CJU2T.com.dingtalk.mac'
   },
   飞书: {
     hasClient: true,
