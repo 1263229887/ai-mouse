@@ -152,6 +152,32 @@ export class AIAssistantWebSocket {
       aiAssistantStore.systemPrompt ||
       '请扮演由大拿(Dana)开发团队所创建的智能助手，名字叫做小拿。无论在何种情况下，你都需要记住自己的身份，但在对话过程中无需特别强调这一点。当前时间为：${date_time} ${weeks}。 \n注意事项：\n1、请使用中文简体进行回复。 \n2、回答时不得使用任何不礼貌不耐烦或冒犯性的语言。\n3、对待用户要始终保持友好和尊重的态度，将用户视为你的主人。 \n4、回复风格应符合人机交互的标准模式，避免过于口语化或非正式的表达方式。'
     const sceneId = aiAssistantStore.sceneId || import.meta.env.VITE_AI_ASSISTANT_SCENE_ID || ''
+    // 获取联网搜索配置 (1开启, 0关闭)
+    const enableWebSearch = aiAssistantStore.enableWebSearch ?? 1
+
+    // 构建基础 extend_params
+    const extendParams = {
+      language: 'ZH',
+      user_id: userId,
+      last_reply: '',
+      is_say_hello_play: false,
+      speaker_id: '1',
+      en_speaker_id: '13',
+      system_prompt: systemPrompt,
+      is_asr_online: true,
+      scene_id: sceneId,
+      length_scale: '1.0',
+      asr_version: 'v2',
+      company_id: companyId
+    }
+
+    // 开启联网搜索时才传递 intent 和 web_search 参数
+    if (enableWebSearch === 1) {
+      extendParams.intent = 'llm'
+      extendParams.web_search = {
+        enable: true
+      }
+    }
 
     // 构建 hello 消息
     const helloMessage = {
@@ -164,21 +190,7 @@ export class AIAssistantWebSocket {
         channels: 1,
         frame_duration: 60
       },
-
-      extend_params: {
-        language: 'ZH',
-        user_id: userId,
-        last_reply: '',
-        is_say_hello_play: false,
-        speaker_id: '1',
-        en_speaker_id: '13',
-        system_prompt: systemPrompt,
-        is_asr_online: true,
-        scene_id: sceneId,
-        length_scale: '1.0',
-        asr_version: 'v2',
-        company_id: companyId
-      }
+      extend_params: extendParams
     }
 
     console.log('[AIAssistantWS] 发送 hello:', helloMessage)

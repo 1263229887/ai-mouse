@@ -19,6 +19,9 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
   // 关联应用ID字符串 (associationInstruct)
   const associationInstruct = ref('')
 
+  // 是否开启联网搜索 (0关闭, 1开启)
+  const enableWebSearch = ref(1)
+
   // 支持的应用列表（根据 associationInstruct 过滤后的列表）
   const supportedApps = ref([])
 
@@ -61,6 +64,7 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
       sceneId.value = config.sceneId
       prologue.value = config.prologue
       associationInstruct.value = config.associationInstruct
+      enableWebSearch.value = config.enableWebSearch ?? 1
 
       // 根据 associationInstruct 过滤支持的应用
       if (config.associationInstruct && mappingList.length > 0) {
@@ -75,7 +79,8 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
         sceneId: sceneId.value,
         prologue: prologue.value ? prologue.value.substring(0, 30) + '...' : '',
         systemPrompt: systemPrompt.value,
-        supportedAppsCount: supportedApps.value.length
+        supportedAppsCount: supportedApps.value.length,
+        enableWebSearch: enableWebSearch.value
       })
     } catch (err) {
       console.error('[AIAssistantStore] 获取 AI 助手配置失败:', err)
@@ -106,6 +111,7 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
     sceneId.value = import.meta.env.VITE_AI_ASSISTANT_SCENE_ID || ''
     prologue.value = '我是小拿，你可以参考下面句子试着说'
     associationInstruct.value = ''
+    enableWebSearch.value = 1
     supportedApps.value = []
     isLoaded.value = true
     console.log('[AIAssistantStore] 使用默认配置')
@@ -119,6 +125,7 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
     sceneId.value = ''
     prologue.value = ''
     associationInstruct.value = ''
+    enableWebSearch.value = 1
     supportedApps.value = []
     isLoading.value = false
     isLoaded.value = false
@@ -131,6 +138,7 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
     sceneId,
     prologue,
     associationInstruct,
+    enableWebSearch,
     supportedApps,
     isLoading,
     isLoaded,

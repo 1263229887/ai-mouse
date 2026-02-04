@@ -49,11 +49,12 @@ export async function getSceneList() {
 }
 
 /**
- * 获取助手人设列表
- * @returns {Promise<Array>} 助手人设列表
+ * 根据ID获取助手人设详情
+ * @param {string} id - 助手人设ID
+ * @returns {Promise<Object>} 助手人设详情
  */
-export async function getCharacterSettingList() {
-  const url = `${BASE_URL}/instructCharacterSetting/pageList?column=createTime&order=desc&pageNo=1&pageSize=999`
+export async function getCharacterSettingById(id) {
+  const url = `${BASE_URL}/instructCharacterSetting/queryByIdV1?_t=${Date.now()}&id=${id}`
 
   const response = await fetch(url, {
     method: 'GET',
@@ -61,16 +62,16 @@ export async function getCharacterSettingList() {
   })
 
   if (!response.ok) {
-    throw new Error(`获取助手人设列表失败: ${response.status}`)
+    throw new Error(`获取助手人设详情失败: ${response.status}`)
   }
 
   const result = await response.json()
 
-  if (result.success && result.data?.records) {
-    return result.data.records
+  if (result.success && result.data) {
+    return result.data
   }
 
-  throw new Error(result.message || '获取助手人设列表失败')
+  throw new Error(result.message || '获取助手人设详情失败')
 }
 
 /**
@@ -101,7 +102,7 @@ export async function getInstructMappingList() {
 /**
  * 获取 AI 语音助手配置
  * 根据场景ID获取关联的助手人设信息
- * @returns {Promise<{systemPrompt: string, sceneId: string, prologue: string, associationInstruct: string}>}
+ * @returns {Promise<{systemPrompt: string, sceneId: string, prologue: string, associationInstruct: string, enableWebSearch: number}>}
  */
 export async function getAIAssistantConfig() {
   // 从环境变量获取场景ID
@@ -113,11 +114,8 @@ export async function getAIAssistantConfig() {
 
   console.log('[DigitalHuman] 开始获取 AI 助手配置，场景ID:', targetSceneId)
 
-  // 并行获取场景列表和助手人设列表
-  const [sceneList, characterSettingList] = await Promise.all([
-    getSceneList(),
-    getCharacterSettingList()
-  ])
+  // 获取场景列表
+  const sceneList = await getSceneList()
 
   // 根据场景ID找到对应的场景
   const targetScene = sceneList.find((scene) => scene.id === targetSceneId)
@@ -139,19 +137,16 @@ export async function getAIAssistantConfig() {
   const targetCharacterId = relationList[0].id
   console.log('[DigitalHuman] 目标助手人设ID:', targetCharacterId, '名称:', relationList[0].name)
 
-  // 根据助手人设ID找到对应的人设配置
-  const targetCharacter = characterSettingList.find((char) => char.id === targetCharacterId)
+  // 通过ID直接获取助手人设详情
+  const targetCharacter = await getCharacterSettingById(targetCharacterId)
 
-  if (!targetCharacter) {
-    throw new Error(`未找到助手人设ID为 ${targetCharacterId} 的配置`)
-  }
-
-  console.log('[DigitalHuman] 找到助手人设配置:', targetCharacter.name)
+  console.log('[DigitalHuman] 获取助手人设配置:', targetCharacter.name)
 
   return {
     systemPrompt: targetCharacter.characterDesign || '',
     sceneId: targetCharacter.id,
     prologue: targetCharacter.prologue || '',
-    associationInstruct: targetCharacter.associationInstruct || ''
+    associationInstruct: targetCharacter.associationInstruct || '',
+    enableWebSearch: targetCharacter.enableWebSearch ?? 1
   }
 }
