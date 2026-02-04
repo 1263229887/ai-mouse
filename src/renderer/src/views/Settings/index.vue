@@ -1,9 +1,19 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import MouseDiagram from '@/components/MouseDiagram/index.vue'
+import SvgIcon from '@/components/SvgIcon/index.vue'
 import CustomSelect from '@/components/CustomSelect/index.vue'
 import { useDeviceStore, KEY_INDEX, BUSINESS_MODE, RECORDING_SOURCE } from '@/stores'
+
+// 等待样式应用后再显示内容
+const isReady = ref(false)
+onMounted(() => {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isReady.value = true
+    })
+  })
+})
 
 // 设备状态（包含按键映射和录音来源）
 const deviceStore = useDeviceStore()
@@ -44,57 +54,64 @@ const setRecordingSource = (source) => {
 </script>
 
 <template>
-  <div class="settings-container">
+  <div
+    v-show="isReady"
+    class="w-full flex-1 flex items-center justify-center p-24 bg-#101214 select-none"
+  >
     <!-- 左侧设置区域 -->
-    <div class="settings-left">
+    <div class="w-380 shrink-0 flex flex-col gap-48 mr-64">
       <!-- 按键设置 -->
-      <section class="settings-section">
-        <h2 class="section-title">按键设置</h2>
+      <section class="flex flex-col gap-20">
+        <h2 class="text-16 font-500 color-#fff m-0">按键设置</h2>
 
-        <div class="key-settings-card">
+        <div class="flex flex-col gap-48 py-56 px-20 rd-8 bg-#1B2023">
           <!-- 语音键设置 -->
-          <div class="key-group">
-            <div class="key-label">
-              <span class="key-dot"></span>
-              <span class="key-name">语音键</span>
+          <div class="flex flex-col gap-14">
+            <div class="flex items-center gap-6">
+              <span class="w-6 h-6 rd-full bg-#8BE6B0"></span>
+              <span class="text-14 color-#8BE6B0">语音键</span>
             </div>
-            <div class="key-options">
-              <div class="option-row">
-                <span class="option-label">单击</span>
+            <div class="flex flex-col gap-14 pl-20">
+              <div class="flex items-center gap-12">
+                <span class="w-36 text-14 color-#606C80">单击</span>
                 <CustomSelect
                   v-model="voiceClickMode"
                   :options="modeOptions"
-                  class="option-select"
+                  class="flex-1 min-w-180"
                 />
               </div>
-              <div class="option-row">
-                <span class="option-label">长按</span>
+              <div class="flex items-center gap-12">
+                <span class="w-36 text-14 color-#606C80">长按</span>
                 <CustomSelect
                   v-model="voiceLongPressMode"
                   :options="modeOptions"
-                  class="option-select"
+                  class="flex-1 min-w-180"
                 />
               </div>
             </div>
           </div>
 
           <!-- AI键设置 -->
-          <div class="key-group">
-            <div class="key-label">
-              <span class="key-dot"></span>
-              <span class="key-name">AI键</span>
+          <div class="flex flex-col gap-14">
+            <div class="flex items-center gap-6">
+              <span class="w-6 h-6 rd-full bg-#8BE6B0"></span>
+              <span class="text-14 color-#8BE6B0">AI键</span>
             </div>
-            <div class="key-options">
-              <div class="option-row">
-                <span class="option-label">单击</span>
-                <CustomSelect v-model="aiClickMode" :options="modeOptions" class="option-select" />
+            <div class="flex flex-col gap-14 pl-20">
+              <div class="flex items-center gap-12">
+                <span class="w-36 text-14 color-#606C80">单击</span>
+                <CustomSelect
+                  v-model="aiClickMode"
+                  :options="modeOptions"
+                  class="flex-1 min-w-180"
+                />
               </div>
-              <div class="option-row">
-                <span class="option-label">长按</span>
+              <div class="flex items-center gap-12">
+                <span class="w-36 text-14 color-#606C80">长按</span>
                 <CustomSelect
                   v-model="aiLongPressMode"
                   :options="modeOptions"
-                  class="option-select"
+                  class="flex-1 min-w-180"
                 />
               </div>
             </div>
@@ -103,19 +120,27 @@ const setRecordingSource = (source) => {
       </section>
 
       <!-- 录音设置 -->
-      <section class="settings-section">
-        <h2 class="section-title">录音设置</h2>
-        <div class="recording-toggle">
+      <section class="flex flex-col gap-20">
+        <h2 class="text-16 font-500 color-#fff m-0">录音设置</h2>
+        <div class="flex gap-12">
           <button
-            class="toggle-btn"
-            :class="{ active: recordingSource === RECORDING_SOURCE.MOUSE }"
+            class="flex-1 py-14 px-20 text-14 rd-8 cursor-pointer b-1 b-solid transition-colors duration-200"
+            :class="
+              recordingSource === RECORDING_SOURCE.MOUSE
+                ? 'color-#8BE6B0 b-#8BE6B0 bg-#1B2023'
+                : 'color-#fff b-transparent bg-#1B2023 hover:b-#606C80'
+            "
             @click="setRecordingSource(RECORDING_SOURCE.MOUSE)"
           >
             鼠标录音
           </button>
           <button
-            class="toggle-btn"
-            :class="{ active: recordingSource === RECORDING_SOURCE.COMPUTER }"
+            class="flex-1 py-14 px-20 text-14 rd-8 cursor-pointer b-1 b-solid transition-colors duration-200"
+            :class="
+              recordingSource === RECORDING_SOURCE.COMPUTER
+                ? 'color-#8BE6B0 b-#8BE6B0 bg-#1B2023'
+                : 'color-#fff b-transparent bg-#1B2023 hover:b-#606C80'
+            "
             @click="setRecordingSource(RECORDING_SOURCE.COMPUTER)"
           >
             电脑录音
@@ -125,172 +150,12 @@ const setRecordingSource = (source) => {
     </div>
 
     <!-- 右侧鼠标图区域 -->
-    <div class="settings-right">
-      <MouseDiagram class="mouse-diagram" />
+    <div class="shrink-0 f-c-c">
+      <SvgIcon name="mouse-diagram" size="580" />
     </div>
   </div>
 </template>
 
-<style lang="scss" scoped>
-.settings-container {
-  width: 100%;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1rem, 2vh, 1.5rem) clamp(1.5rem, 3vw, 2rem);
-  background: var(--bg-color-page);
-  transition: background 0.3s ease;
-}
-
-// 左侧设置区域
-.settings-left {
-  flex: 0 0 auto;
-  width: clamp(340px, 35vw, 450px);
-  display: flex;
-  flex-direction: column;
-  gap: clamp(2.5rem, 5vh, 3.5rem); // 进一步增加录音设置和按键设置之间的距离
-  margin-right: clamp(3rem, 5vw, 4.5rem);
-}
-
-// 右侧鼠标图区域
-.settings-right {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mouse-diagram {
-  width: auto;
-  height: clamp(500px, 80vh, 650px);
-}
-
-// 设置分区
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(1rem, 2vh, 1.3rem); // 进一步增加标题和内容之间的距离
-}
-
-.section-title {
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.85rem, 1.6vw, 1rem);
-  font-weight: 500;
-  color: var(--text-primary);
-  margin: 0;
-  transition: color 0.3s ease;
-}
-
-// 按键设置卡片
-.key-settings-card {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(2.8rem, 5vh, 3.8rem);
-  padding: clamp(3.2rem, 6vh, 4.5rem) clamp(1.2rem, 2.5vw, 1.5rem); // 再次增加卡片上下内边距
-  border-radius: 8px;
-  background: var(--settings-card-bg);
-  transition: background 0.3s ease;
-}
-
-// 按键组
-.key-group {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(0.8rem, 1.6vh, 1rem);
-}
-
-.key-label {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.35rem, 0.7vw, 0.45rem);
-}
-
-.key-dot {
-  width: clamp(5px, 0.5vw, 6px);
-  height: clamp(5px, 0.5vw, 6px);
-  border-radius: 50%;
-  background: #8be6b0;
-}
-
-.key-name {
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.8rem, 1.5vw, 0.95rem);
-  font-weight: 400;
-  color: #8be6b0;
-}
-
-// 选项行
-.key-options {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(0.8rem, 1.6vh, 1rem);
-  padding-left: clamp(1rem, 2vw, 1.4rem);
-}
-
-.option-row {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.8rem, 1.5vw, 1rem);
-}
-
-.option-label {
-  flex: 0 0 clamp(1.8rem, 3.5vw, 2.2rem);
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.75rem, 1.4vw, 0.85rem);
-  color: var(--text-secondary);
-  transition: color 0.3s ease;
-}
-
-.option-select {
-  flex: 1;
-  min-width: clamp(160px, 12vw, 220px);
-}
-
-// 录音设置切换按钮组
-.recording-toggle {
-  display: flex;
-  gap: clamp(0.75rem, 1.5vw, 1rem);
-}
-
-.toggle-btn {
-  flex: 1;
-  padding: clamp(0.75rem, 1.5vh, 1rem) clamp(1rem, 2vw, 1.4rem); // 增加按钮的上下内边距，让按钮更高
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.8rem, 1.5vw, 0.95rem);
-  font-weight: 400;
-  color: var(--text-primary);
-  background: var(--settings-card-bg);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: all 0.3s ease;
-
-  &:hover {
-    border-color: var(--text-secondary);
-  }
-
-  &.active {
-    color: #8be6b0;
-    border-color: #8be6b0;
-    background: var(--settings-card-bg);
-  }
-}
+<style scoped>
+/* 无需额外样式 */
 </style>

@@ -1,10 +1,13 @@
 <template>
-  <div ref="selectRef" class="language-select" :class="{ 'is-open': isOpen }">
-    <!-- 触发器：只显示语种名 -->
-    <div class="select-trigger" @click="toggleDropdown">
-      <span class="select-value">{{ displayValue }}</span>
-      <span class="select-arrow">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+  <div ref="selectRef" class="relative" :class="{ 'is-open': isOpen }">
+    <!-- 触发器 -->
+    <div
+      class="select-trigger f-c-c h-full px-14 bg-transparent b-1 b-solid b-#606C80 rd-6 cursor-pointer"
+      @click="toggleDropdown"
+    >
+      <span class="text-14 color-white truncate">{{ displayValue }}</span>
+      <span class="select-arrow flex items-center justify-center color-#606C80 ml-8 shrink-0">
+        <svg width="14" height="14" viewBox="0 0 10 10" fill="currentColor">
           <path d="M2 3.5L5 6.5L8 3.5H2Z" />
         </svg>
       </span>
@@ -12,18 +15,23 @@
 
     <!-- 下拉面板 -->
     <Transition name="dropdown">
-      <div v-show="isOpen" class="select-dropdown">
+      <div
+        v-show="isOpen"
+        class="select-dropdown absolute top-[calc(100%+4px)] left-0 right-0 w-full bg-#1E1E1E/98 b-1 b-solid b-#606C80 rd-8 shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-1000 overflow-hidden"
+      >
         <!-- 搜索框 -->
-        <div class="search-wrapper">
+        <div class="relative p-12 b-b-1 b-b-solid b-b-white/10">
           <input
             ref="searchInputRef"
             v-model="searchKeyword"
-            class="search-input"
+            class="w-full h-32 pl-36 pr-12 text-14 color-white bg-white/5 b-1 b-solid b-white/10 rd-6 outline-none box-border placeholder:color-#606C80"
             type="text"
             :placeholder="searchPlaceholder"
             @input="handleSearch"
           />
-          <span class="search-icon">
+          <span
+            class="absolute left-20 top-50% translate-y--50% color-#606C80 flex items-center justify-center"
+          >
             <svg
               width="14"
               height="14"
@@ -39,32 +47,32 @@
         </div>
 
         <!-- 语言列表 -->
-        <div class="options-list">
+        <div class="options-list max-h-200 overflow-y-auto">
           <template v-if="filteredOptions.length">
             <div
               v-for="option in filteredOptions"
               :key="option.isoCode + (option.areaId || '')"
-              class="select-option"
+              class="select-option flex items-center justify-between px-12 h-40 text-14 color-white cursor-pointer"
               :class="{ 'is-selected': isSelected(option) }"
               @click="selectOption(option)"
             >
-              <div class="option-content">
-                <span class="option-chinese" :class="{ 'is-selected': isSelected(option) }">{{
+              <div class="h-full flex items-center">
+                <span class="text-13 shrink-0" :class="isSelected(option) ? 'color-#8BE6B0' : ''">{{
                   option.chinese
                 }}</span>
                 <span
                   v-if="option.countryName"
-                  class="option-country"
-                  :class="{ 'is-selected': isSelected(option) }"
+                  class="ml-8 text-11 truncate"
+                  :class="isSelected(option) ? 'color-#8BE6B0' : 'color-#606C80'"
                   >{{ option.countryName }}</span
                 >
               </div>
               <!-- 选中对勾 -->
-              <span v-if="isSelected(option)" class="check-icon">
+              <span v-if="isSelected(option)" class="flex items-center justify-center shrink-0">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M5 12l5 5L20 7"
-                    stroke="#34C759"
+                    stroke="#8BE6B0"
                     stroke-width="2.5"
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -73,7 +81,7 @@
               </span>
             </div>
           </template>
-          <div v-else class="no-data">暂无匹配语言</div>
+          <div v-else class="py-32 text-center color-#606C80 text-14">暂无匹配语言</div>
         </div>
       </div>
     </Transition>
@@ -84,29 +92,11 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
-  // 当前选中的 isoCode
-  modelValue: {
-    type: String,
-    required: true
-  },
-  // 当前选中的 areaId（用于精确匹配）
-  selectedAreaId: {
-    type: [String, Number],
-    default: ''
-  },
-  // 语言列表 [{ isoCode, chinese, countryName?, areaId? }]
-  options: {
-    type: Array,
-    required: true
-  },
-  placeholder: {
-    type: String,
-    default: '请选择语言'
-  },
-  searchPlaceholder: {
-    type: String,
-    default: '搜索语言'
-  }
+  modelValue: { type: String, required: true },
+  selectedAreaId: { type: [String, Number], default: '' },
+  options: { type: Array, required: true },
+  placeholder: { type: String, default: '请选择语言' },
+  searchPlaceholder: { type: String, default: '搜索语言' }
 })
 
 const emit = defineEmits(['update:modelValue', 'update:selectedAreaId', 'change'])
@@ -116,38 +106,21 @@ const searchKeyword = ref('')
 const selectRef = ref(null)
 const searchInputRef = ref(null)
 
-// 计算显示值：只显示语种名（chinese）
 const displayValue = computed(() => {
-  console.log(
-    '[LanguageSelect] displayValue 计算, modelValue:',
-    props.modelValue,
-    'selectedAreaId:',
-    props.selectedAreaId
-  )
-  console.log('[LanguageSelect] options 长度:', props.options?.length)
-
   if (!props.modelValue) return props.placeholder
-  // 优先用 areaId 匹配
   if (props.selectedAreaId) {
     const selected = props.options.find(
       (opt) =>
         opt.areaId === props.selectedAreaId || String(opt.areaId) === String(props.selectedAreaId)
     )
-    console.log('[LanguageSelect] areaId 匹配结果:', selected)
     if (selected) return selected.chinese
   }
-  // 否则用 isoCode 匹配
   const selected = props.options.find((opt) => opt.isoCode === props.modelValue)
-  console.log('[LanguageSelect] isoCode 匹配结果:', selected)
-  if (selected) return selected.chinese
-  return props.placeholder
+  return selected ? selected.chinese : props.placeholder
 })
 
-// 过滤后的选项列表
 const filteredOptions = computed(() => {
-  if (!searchKeyword.value.trim()) {
-    return props.options
-  }
+  if (!searchKeyword.value.trim()) return props.options
   const keyword = searchKeyword.value.toLowerCase().trim()
   return props.options.filter((item) => {
     const chinese = item.chinese ? String(item.chinese).toLowerCase() : ''
@@ -157,7 +130,6 @@ const filteredOptions = computed(() => {
   })
 })
 
-// 判断是否选中（优先用 areaId 匹配，否则用 isoCode）
 const isSelected = (option) => {
   if (props.selectedAreaId && option.areaId) {
     return String(option.areaId) === String(props.selectedAreaId)
@@ -165,21 +137,15 @@ const isSelected = (option) => {
   return option.isoCode === props.modelValue
 }
 
-// 切换下拉框
 const toggleDropdown = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
-    // 打开时聚焦搜索框
-    nextTick(() => {
-      searchInputRef.value?.focus()
-    })
+    nextTick(() => searchInputRef.value?.focus())
   } else {
-    // 关闭时清空搜索
     searchKeyword.value = ''
   }
 }
 
-// 选择选项
 const selectOption = (option) => {
   emit('update:modelValue', option.isoCode)
   emit('update:selectedAreaId', option.areaId || '')
@@ -188,12 +154,8 @@ const selectOption = (option) => {
   searchKeyword.value = ''
 }
 
-// 搜索处理
-const handleSearch = () => {
-  // 搜索逻辑由 computed 自动处理
-}
+const handleSearch = () => {}
 
-// 点击外部关闭下拉框
 const handleClickOutside = (event) => {
   if (selectRef.value && !selectRef.value.contains(event.target)) {
     isOpen.value = false
@@ -201,234 +163,62 @@ const handleClickOutside = (event) => {
   }
 }
 
-// 监听下拉框关闭，清空搜索
 watch(isOpen, (val) => {
-  if (!val) {
-    searchKeyword.value = ''
-  }
+  if (!val) searchKeyword.value = ''
 })
 
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 </script>
 
-<style lang="scss" scoped>
-.language-select {
-  position: relative;
-  width: 100%;
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-}
-
+<style scoped>
 .select-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: clamp(1.875rem, 3vw, 2.25rem);
-  padding: clamp(0.35rem, 0.7vw, 0.5rem) clamp(0.9rem, 1.8vw, 1.1rem);
-  background: transparent;
-  border: 1px solid #606c80;
-  border-radius: clamp(0.3rem, 0.6vw, 0.375rem);
-  cursor: pointer;
-  transition:
-    border-color 0.3s ease,
-    background 0.3s ease;
-
-  &:hover {
-    border-color: var(--text-secondary);
-  }
+  transition: border-color 0.2s;
 }
-
+.select-trigger:hover {
+  border-color: #909399;
+}
 .is-open .select-trigger {
-  border-color: var(--color-primary);
+  border-color: #8be6b0;
 }
-
-.select-value {
-  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
-  color: #ffffff;
-  transition: color 0.3s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .select-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
   transition:
-    transform 0.3s ease,
-    color 0.3s ease;
-  flex-shrink: 0;
-  margin-left: clamp(0.375rem, 0.8vw, 0.5rem);
+    transform 0.2s,
+    color 0.2s;
 }
-
 .is-open .select-arrow {
   transform: rotate(180deg);
-  color: var(--color-primary);
+  color: #8be6b0;
 }
-
-.select-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  width: 100%; // 下拉列表宽度与触发框保持一致
-  background: rgba(30, 30, 30, 0.98);
-  border: 1px solid #606c80;
-  border-radius: clamp(0.3rem, 0.6vw, 0.5rem);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  overflow: hidden;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+input:focus {
+  border-color: #8be6b0;
+  background: rgba(255, 255, 255, 0.08);
 }
-
-.search-wrapper {
-  position: relative;
-  padding: clamp(0.5rem, 1vw, 0.75rem);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.options-list::-webkit-scrollbar {
+  width: 4px;
 }
-
-.search-input {
-  width: 100%;
-  height: clamp(1.75rem, 3vw, 2rem);
-  padding: 0 clamp(0.5rem, 1vw, 0.75rem);
-  padding-left: clamp(1.75rem, 3.5vw, 2.25rem);
-  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: clamp(0.25rem, 0.5vw, 0.375rem);
-  outline: none;
-  transition:
-    border-color 0.3s ease,
-    background 0.3s ease;
-  box-sizing: border-box;
-
-  &::placeholder {
-    color: var(--text-placeholder);
-  }
-
-  &:focus {
-    border-color: var(--color-primary);
-    background: rgba(255, 255, 255, 0.08);
-  }
+.options-list::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-.search-icon {
-  position: absolute;
-  left: clamp(1rem, 2vw, 1.25rem);
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.options-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
-
-.options-list {
-  max-height: clamp(10rem, 25vh, 15rem);
-  overflow-y: auto;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-  }
-}
-
 .select-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 clamp(0.55rem, 1vw, 0.75rem);
-  height: clamp(2rem, 3.5vh, 2.5rem);
-  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
-  color: #ffffff;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  &.is-selected {
-    background: rgba(52, 199, 89, 0.1);
-  }
+  transition: background 0.2s;
 }
-
-.option-content {
-  height: 100%;
-  display: flex;
-  align-items: center;
+.select-option:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
-
-.option-chinese {
-  flex-shrink: 0;
-  transition: color 0.2s ease;
-  font-size: clamp(0.7rem, 1.2vw, 0.8rem);
-  &.is-selected {
-    color: #34c759;
-  }
+.select-option.is-selected {
+  background: rgba(52, 199, 89, 0.1);
 }
-
-.option-country {
-  margin-left: clamp(0.5rem, 1vw, 0.75rem);
-  color: var(--text-secondary);
-  font-size: clamp(0.6rem, 1.1vw, 0.7rem);
-  transition: color 0.2s ease;
-  //   一行展示不下就省略号显示
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &.is-selected {
-    color: #34c759;
-  }
-}
-
-.check-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.no-data {
-  padding: clamp(1.5rem, 3vw, 2rem);
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
-}
-
-// 下拉动画
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+    opacity 0.2s,
+    transform 0.2s;
 }
-
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;

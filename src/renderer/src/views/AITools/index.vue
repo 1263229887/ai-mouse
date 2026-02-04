@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick, onUnmounted } from 'vue'
 
 // 等待样式应用后再显示内容
 const isReady = ref(false)
@@ -7,6 +7,10 @@ onMounted(() => {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       isReady.value = true
+      // 内容显示后检测溢出状态
+      nextTick(() => {
+        checkAllOverflow()
+      })
     })
   })
 })
@@ -22,7 +26,7 @@ const categories = [
       { name: 'AiPPT', desc: 'AI快速生成高质量PPT', url: 'https://www.aippt.cn/' },
       {
         name: '咔片PPT',
-        desc: 'AI PPT制作工具，设计美化全流程自动化|test|AI PPT制作工具，设计美化全流程自动化',
+        desc: 'AI PPT制作工具，设计美化全流程自动化|ppt|AI PPT制作工具，设计美化全流程自动化',
         url: 'https://www.cappt.cc/?mtm_campaign=CZQD-aibot-zxsl-10008'
       },
       { name: '博思AIPPT', desc: 'PPT效率神器，AI一键生成PPT', url: 'https://www.bosir.cn/' },
@@ -575,7 +579,7 @@ const categories = [
       },
       {
         name: '大饼AI变声',
-        desc: '免费专业的AI变声软件，一键实时语音变声|test|支持多种声音|实时语音变声|专业音质',
+        desc: '免费专业的AI变声软件，一键实时语音变声|AI变声|支持多种声音|实时语音变声|专业音质',
         url: 'https://dianbing.cn/'
       }
     ]
@@ -655,11 +659,56 @@ const openToolUrl = (url) => {
   window.open(url, '_blank')
 }
 
-// 判断文本是否可能超出两行（简单估算）
-const isTextOverflow = (text) => {
-  // 卡片内容区域大约能显示约30个中文字符（两行）
-  return text && text.length > 30
+// 存储每个工具描述的溢出状态
+const overflowStates = reactive({})
+
+// 工具描述元素的refs
+const descRefs = ref({})
+
+// 设置描述元素ref
+const setDescRef = (el, toolName) => {
+  if (el) {
+    descRefs.value[toolName] = el
+  }
 }
+
+// 检测单个元素是否溢出
+const checkOverflow = (el) => {
+  if (!el) return false
+  // 使用 scrollHeight 和 clientHeight 比较来判断是否溢出
+  return el.scrollHeight > el.clientHeight
+}
+
+// 检测所有工具描述的溢出状态
+const checkAllOverflow = () => {
+  for (const toolName in descRefs.value) {
+    const el = descRefs.value[toolName]
+    overflowStates[toolName] = checkOverflow(el)
+  }
+}
+
+// 判断工具描述是否溢出
+const isTextOverflow = (toolName) => {
+  return overflowStates[toolName] === true
+}
+
+// 监听窗口大小变化，重新检测溢出状态
+let resizeTimer = null
+const handleResize = () => {
+  clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    checkAllOverflow()
+  }, 200)
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  clearTimeout(resizeTimer)
+})
 
 // 设置分类区块ref
 const setCategoryRef = (el, categoryId) => {
@@ -719,10 +768,15 @@ const setCategoryRef = (el, categoryId) => {
                   placement="top"
                   effect="light"
                   popper-class="tool-tooltip"
-                  :disabled="!isTextOverflow(tool.desc)"
+                  :disabled="!isTextOverflow(tool.name)"
                   :show-after="50"
                 >
-                  <div class="text-12 color-#606C80 tool-desc">{{ tool.desc }}</div>
+                  <div
+                    :ref="(el) => setDescRef(el, tool.name)"
+                    class="text-12 color-#606C80 tool-desc"
+                  >
+                    {{ tool.desc }}
+                  </div>
                 </el-tooltip>
               </div>
             </div>

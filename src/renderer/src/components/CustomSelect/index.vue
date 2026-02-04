@@ -1,20 +1,32 @@
 <template>
-  <div ref="selectRef" class="custom-select" :class="{ 'is-open': isOpen }">
-    <div class="select-trigger" @click="toggleDropdown">
-      <span class="select-value">{{ displayValue }}</span>
-      <span class="select-arrow">
+  <div ref="selectRef" class="relative w-full" :class="{ 'is-open': isOpen }">
+    <div
+      class="flex items-center justify-between min-h-36 py-8 px-16 bg-transparent b-1 b-solid b-#303030 rd-8 cursor-pointer hover:b-#606C80 transition-colors duration-200"
+      :class="isOpen ? 'b-#8BE6B0!' : ''"
+      @click="toggleDropdown"
+    >
+      <span class="text-14 color-#fff">{{ displayValue }}</span>
+      <span
+        class="f-c-c transition-transform duration-200"
+        :class="isOpen ? 'rotate-180 color-#8BE6B0' : 'color-#606C80'"
+      >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
           <path d="M2 3.5L5 6.5L8 3.5H2Z" />
         </svg>
       </span>
     </div>
     <Transition name="dropdown">
-      <div v-show="isOpen" class="select-dropdown">
+      <div
+        v-show="isOpen"
+        class="absolute top-[calc(100%+4px)] left-0 right-0 bg-#1B2023 b-1 b-solid b-#303030 rd-8 z-100 overflow-hidden"
+      >
         <div
           v-for="option in options"
           :key="option.value"
-          class="select-option"
-          :class="{ 'is-selected': modelValue === option.value }"
+          class="py-10 px-16 text-14 cursor-pointer transition-colors duration-200"
+          :class="
+            modelValue === option.value ? 'color-#8BE6B0 bg-#252A2D' : 'color-#fff hover:bg-#252A2D'
+          "
           @click="selectOption(option)"
         >
           {{ option.label }}
@@ -35,7 +47,6 @@ const props = defineProps({
   options: {
     type: Array,
     required: true
-    // [{ label: '显示文本', value: '值' }]
   },
   placeholder: {
     type: String,
@@ -79,97 +90,8 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style lang="scss" scoped>
-.custom-select {
-  position: relative;
-  width: 100%;
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-}
-
-.select-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: clamp(30px, 2vw, 36px);
-  padding: clamp(0.35rem, 0.7vw, 0.5rem) clamp(0.9rem, 1.8vw, 1.1rem);
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    border-color 0.3s ease,
-    background 0.3s ease;
-
-  &:hover {
-    border-color: var(--text-secondary);
-  }
-}
-
-.is-open .select-trigger {
-  border-color: var(--color-primary);
-}
-
-.select-value {
-  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
-  color: var(--text-primary);
-  transition: color 0.3s ease;
-}
-
-.select-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition:
-    transform 0.3s ease,
-    color 0.3s ease;
-}
-
-.is-open .select-arrow {
-  transform: rotate(180deg);
-  color: var(--color-primary);
-}
-
-.select-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
-  z-index: 100;
-  overflow: hidden;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.select-option {
-  padding: clamp(0.5rem, 1vw, 0.7rem) clamp(0.9rem, 1.8vw, 1.1rem);
-  font-size: clamp(0.8rem, 1.5vw, 0.9rem);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-
-  &:hover {
-    background: var(--bg-color-hover);
-  }
-
-  &.is-selected {
-    color: var(--color-primary);
-    background: var(--bg-color-active);
-  }
-}
-
-// 下拉动画
+<style scoped>
+/* 下拉动画 */
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition:

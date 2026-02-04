@@ -744,13 +744,6 @@ const handleClose = async () => {
   }, 300)
 }
 
-// 立即启动（跳过延迟）
-const startNow = () => {
-  isDelayStarting.value = false
-  recordingStatus.value = '正在连接...'
-  startService()
-}
-
 // ============ 窗口拖动功能 ============
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -784,225 +777,131 @@ const handleMouseUp = () => {
 
 <template>
   <div
-    class="ai-assistant-window"
+    class="w-full h-full flex flex-col overflow-hidden select-none"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
     @mouseup="handleMouseUp"
     @mouseleave="handleMouseUp"
   >
-    <!-- 标题栏 -->
-    <div class="title-bar drag-region">
-      <span class="title">AI语音助手</span>
-      <button class="close-btn" @click="handleClose">
-        <span class="close-icon">×</span>
+    <!-- 标题栏（顶部圆角） -->
+    <div
+      class="drag-region flex items-center justify-between px-16 py-12 bg-#1B2023 rd-t-12 b-b-1 b-b-solid b-b-#303030 cursor-move"
+    >
+      <span class="text-16 font-600 color-white">AI语音助手</span>
+      <button
+        class="close-btn flex items-center justify-center w-28 h-28 bg-#FF3B30 b-none rd-6 cursor-pointer"
+        @click="handleClose"
+      >
+        <span class="text-20 color-white leading-none">×</span>
       </button>
     </div>
 
-    <!-- 内容区域 -->
-    <div class="content">
-      <!-- 录音状态栏（顶部） -->
-      <div class="top-status-bar">
-        <span class="status-dot" :class="{ active: isRecording }"></span>
-        <span class="status-text">{{ recordingStatus }}</span>
-        <button v-if="isDelayStarting" class="start-now-btn" @click="startNow">立即连接</button>
+    <!-- 内容区域（底部圆角） -->
+    <div class="flex-1 flex flex-col px-16 py-12 overflow-hidden min-h-0 bg-#101214 rd-b-12">
+      <!-- 顶部状态栏 -->
+      <div class="flex items-center gap-8 shrink-0 mb-12">
+        <span
+          class="status-dot w-10 h-10 rd-full"
+          :class="isRecording ? 'bg-#34C759' : 'bg-#606C80'"
+        ></span>
+        <span class="text-13 color-#606C80">{{ recordingStatus }}</span>
       </div>
 
       <!-- 对话消息列表 -->
-      <div ref="messagesContainer" class="messages-container" @scroll="handleScroll">
+      <div
+        ref="messagesContainer"
+        class="scroll-container flex-1 flex flex-col gap-12 overflow-y-auto overflow-x-hidden p-6"
+        @scroll="handleScroll"
+      >
         <!-- 历史消息 -->
         <div
           v-for="(msg, index) in chatMessages"
           :key="index"
-          class="message-item"
+          class="message-item flex w-full"
           :class="msg.role"
         >
-          <div class="message-bubble">
+          <div class="message-bubble max-w-85% px-14 py-10 text-14 leading-relaxed break-words">
             {{ msg.content }}
           </div>
         </div>
 
-        <!-- 当前用户输入（实时显示） -->
-        <div v-if="currentUserText" class="message-item user current" :class="{ stt: sttText }">
-          <div class="message-bubble">
+        <!-- 当前用户输入 -->
+        <div
+          v-if="currentUserText"
+          class="message-item user current flex w-full justify-end"
+          :class="{ stt: sttText }"
+        >
+          <div class="message-bubble max-w-85% px-14 py-10 text-14 leading-relaxed break-words">
             {{ currentUserText }}
           </div>
         </div>
 
-        <!-- 当前 AI 回复（实时显示） -->
-        <div v-if="currentAIText" class="message-item assistant current">
-          <div class="message-bubble">
+        <!-- 当前 AI 回复 -->
+        <div v-if="currentAIText" class="message-item assistant current flex w-full justify-start">
+          <div class="message-bubble max-w-85% px-14 py-10 text-14 leading-relaxed break-words">
             {{ currentAIText }}
           </div>
         </div>
 
-        <!-- 空状态提示 -->
+        <!-- 空状态 -->
         <div
           v-if="chatMessages.length === 0 && !currentUserText && !currentAIText"
-          class="empty-tip"
+          class="flex-1 flex items-center justify-center color-#909399 text-14"
         >
           开始说话吧...
         </div>
       </div>
 
-      <!-- 播报/静音状态栏（底部） -->
-      <div class="bottom-status-bar" @click="toggleMute">
-        <!-- 播报中状态 -->
+      <!-- 底部状态栏 -->
+      <div
+        class="flex items-center gap-8 shrink-0 mt-12 pt-8 b-t-1 b-t-solid b-t-#303030 cursor-pointer"
+        @click="toggleMute"
+      >
+        <!-- 播报中 -->
         <template v-if="!isMuted">
-          <span class="playing-indicator" :class="{ active: isPlaying }">
-            <span class="wave-bar"></span>
-            <span class="wave-bar"></span>
-            <span class="wave-bar"></span>
-            <span class="wave-bar"></span>
+          <span
+            class="playing-indicator inline-flex items-end gap-2px h-14"
+            :class="{ active: isPlaying }"
+          >
+            <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
+            <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
+            <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
+            <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
           </span>
         </template>
-        <!-- 静音状态 -->
+        <!-- 静音 -->
         <template v-else>
-          <span class="mute-indicator">
-            <svg viewBox="0 0 24 24" fill="currentColor" class="mute-icon">
+          <span class="inline-flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="w-16 h-16 color-#909399">
               <path
                 d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
               />
             </svg>
           </span>
-          <span class="mute-text">你已静音</span>
+          <span class="text-12 color-#909399 ml-3">你已静音</span>
         </template>
       </div>
     </div>
   </div>
 </template>
 
-<style lang="scss" scoped>
-.ai-assistant-window {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-color);
-  border-radius: clamp(0.5rem, 1vw, 0.75rem);
-  overflow: hidden;
-  user-select: none;
-}
-
-// 标题栏
-.title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color-light);
-  cursor: move;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.title {
-  font-size: clamp(0.875rem, 1.5vw, 1rem);
-  font-weight: 600;
-  color: var(--text-primary);
-  transition: color 0.3s ease;
-}
-
+<style scoped>
 .close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: clamp(1.5rem, 3vw, 1.75rem);
-  height: clamp(1.5rem, 3vw, 1.75rem);
-  background: var(--color-danger);
-  border: none;
-  border-radius: clamp(0.25rem, 0.5vw, 0.375rem);
-  cursor: pointer;
   transition:
-    background 0.2s ease,
-    transform 0.2s ease;
-
-  &:hover {
-    background: #ff6b6b;
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
+    background 0.2s,
+    transform 0.2s;
 }
-
-.close-icon {
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  color: #fff;
-  line-height: 1;
+.close-btn:hover {
+  background: #ff6b6b;
+  transform: scale(1.05);
 }
-
-// 内容区域
-.content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
-  overflow: hidden;
-  min-height: 0;
+.close-btn:active {
+  transform: scale(0.95);
 }
-
-// 顶部状态栏
-.top-status-bar {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.375rem, 1vw, 0.5rem);
-  flex-shrink: 0;
-  margin-bottom: clamp(0.5rem, 1vw, 0.75rem);
-}
-
-// 底部状态栏
-.bottom-status-bar {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.375rem, 1vw, 0.5rem);
-  flex-shrink: 0;
-  margin-top: clamp(0.5rem, 1vw, 0.75rem);
-  padding-top: clamp(0.375rem, 0.8vw, 0.5rem);
-  border-top: 1px solid var(--border-color-light);
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-
-  &:hover {
-    opacity: 0.8;
-  }
-
-  &:active {
-    opacity: 0.6;
-  }
-}
-
-.start-now-btn {
-  margin-left: auto;
-  padding: clamp(0.2rem, 0.5vw, 0.3rem) clamp(0.5rem, 1vw, 0.75rem);
-  font-size: clamp(0.65rem, 1vw, 0.75rem);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: clamp(0.2rem, 0.4vw, 0.25rem);
-  cursor: pointer;
-  transition: background 0.2s ease;
-
-  &:hover {
-    background: var(--color-primary-light, #66b1ff);
-  }
-}
-
 .status-dot {
-  width: clamp(0.5rem, 1vw, 0.625rem);
-  height: clamp(0.5rem, 1vw, 0.625rem);
-  background: var(--text-secondary);
-  border-radius: 50%;
-  transition: background 0.3s ease;
-
-  &.active {
-    background: var(--color-success);
-    animation: pulse-dot 1.5s infinite;
-  }
+  transition: background 0.3s;
+  animation: pulse-dot 1.5s infinite;
 }
-
 @keyframes pulse-dot {
   0%,
   100% {
@@ -1012,158 +911,76 @@ const handleMouseUp = () => {
     opacity: 0.5;
   }
 }
-
-.status-text {
-  font-size: clamp(0.75rem, 1.2vw, 0.8125rem);
-  color: var(--text-secondary);
-  transition: color 0.3s ease;
+/* Element Plus 风格滚动条 */
+.scroll-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-// 对话消息列表
-.messages-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(0.5rem, 1vw, 0.75rem);
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: clamp(0.25rem, 0.5vw, 0.375rem);
-
-  // Element Plus 风格滚动条
-  &::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--text-placeholder);
-    border-radius: 3px;
-    transition: background-color 0.3s ease;
-
-    &:hover {
-      background-color: var(--text-secondary);
-    }
-  }
-
-  &::-webkit-scrollbar-track {
-    background-color: transparent;
-  }
+.scroll-container::-webkit-scrollbar-thumb {
+  background-color: #909399;
+  border-radius: 3px;
 }
-
-// 消息条目
-.message-item {
-  display: flex;
-  width: 100%;
-
-  // 用户消息 - 靠右
-  &.user {
-    justify-content: flex-end;
-
-    .message-bubble {
-      background: var(--color-primary);
-      color: #fff;
-      border-radius: clamp(0.5rem, 1vw, 0.75rem) clamp(0.5rem, 1vw, 0.75rem)
-        clamp(0.125rem, 0.25vw, 0.1875rem) clamp(0.5rem, 1vw, 0.75rem);
-    }
-  }
-
-  // AI 消息 - 靠左
-  &.assistant {
-    justify-content: flex-start;
-
-    .message-bubble {
-      background: var(--card-bg);
-      color: var(--text-primary);
-      border: 1px solid var(--border-color-light);
-      border-radius: clamp(0.5rem, 1vw, 0.75rem) clamp(0.5rem, 1vw, 0.75rem)
-        clamp(0.5rem, 1vw, 0.75rem) clamp(0.125rem, 0.25vw, 0.1875rem);
-    }
-  }
-
-  // 当前输入中的消息
-  &.current .message-bubble {
-    opacity: 0.8;
-  }
-
-  // stt 灰色显示
-  &.stt .message-bubble {
-    background: var(--text-placeholder);
-    opacity: 0.6;
-  }
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: #606c80;
 }
-
-// 消息气泡
-.message-bubble {
-  max-width: 85%;
-  padding: clamp(0.5rem, 1vw, 0.75rem) clamp(0.625rem, 1.25vw, 0.875rem);
-  font-size: clamp(0.8rem, 1.3vw, 0.875rem);
-  line-height: 1.5;
-  word-break: break-word;
-  transition:
-    background 0.3s ease,
-    color 0.3s ease,
-    border-color 0.3s ease;
+.scroll-container::-webkit-scrollbar-track {
+  background-color: transparent;
 }
-
-// 空状态提示
-.empty-tip {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-placeholder);
-  font-size: clamp(0.8rem, 1.3vw, 0.875rem);
+.message-item.user {
+  justify-content: flex-end;
 }
-
-// 播报动画指示器
-.playing-indicator {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: clamp(0.75rem, 1.2vw, 0.875rem);
-
-  .wave-bar {
-    width: 3px;
-    background: var(--text-placeholder);
-    border-radius: 1px;
-    transition: background 0.3s ease;
-
-    &:nth-child(1) {
-      height: 40%;
-    }
-    &:nth-child(2) {
-      height: 70%;
-    }
-    &:nth-child(3) {
-      height: 50%;
-    }
-    &:nth-child(4) {
-      height: 80%;
-    }
-  }
-
-  // 播报中 - 启动动画
-  &.active {
-    .wave-bar {
-      background: var(--color-primary);
-      animation: wave-animation 1.2s ease-in-out infinite;
-
-      &:nth-child(1) {
-        animation-delay: 0s;
-      }
-      &:nth-child(2) {
-        animation-delay: 0.2s;
-      }
-      &:nth-child(3) {
-        animation-delay: 0.4s;
-      }
-      &:nth-child(4) {
-        animation-delay: 0.6s;
-      }
-    }
-  }
+.message-item.user .message-bubble {
+  background: #aaea79;
+  color: #000000;
+  border-radius: 12px 12px 3px 12px;
 }
-
+.message-item.assistant {
+  justify-content: flex-start;
+}
+.message-item.assistant .message-bubble {
+  background: #1b2023;
+  color: white;
+  border: 1px solid #303030;
+  border-radius: 12px 12px 12px 3px;
+}
+.message-item.current .message-bubble {
+  opacity: 0.8;
+}
+.message-item.stt .message-bubble {
+  background: #909399;
+  opacity: 0.6;
+}
+.wave-bar {
+  transition: background 0.3s;
+}
+.wave-bar:nth-child(1) {
+  height: 40%;
+}
+.wave-bar:nth-child(2) {
+  height: 70%;
+}
+.wave-bar:nth-child(3) {
+  height: 50%;
+}
+.wave-bar:nth-child(4) {
+  height: 80%;
+}
+.playing-indicator.active .wave-bar {
+  background: #8be6b0;
+  animation: wave-animation 1.2s ease-in-out infinite;
+}
+.playing-indicator.active .wave-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+.playing-indicator.active .wave-bar:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.playing-indicator.active .wave-bar:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.playing-indicator.active .wave-bar:nth-child(4) {
+  animation-delay: 0.6s;
+}
 @keyframes wave-animation {
   0%,
   100% {
@@ -1174,24 +991,5 @@ const handleMouseUp = () => {
     transform: scaleY(1);
     opacity: 1;
   }
-}
-
-// 静音指示器
-.mute-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mute-icon {
-  width: clamp(0.875rem, 1.5vw, 1rem);
-  height: clamp(0.875rem, 1.5vw, 1rem);
-  color: var(--text-placeholder);
-}
-
-.mute-text {
-  font-size: clamp(0.7rem, 1.1vw, 0.75rem);
-  color: var(--text-placeholder);
-  margin-left: clamp(0.125rem, 0.3vw, 0.1875rem);
 }
 </style>

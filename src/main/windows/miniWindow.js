@@ -154,11 +154,17 @@ export function createBusinessCWindow(options = {}) {
  * @returns {BrowserWindow}
  */
 export function createVoiceTranslateWindow(options = {}) {
+  // 获取屏幕工作区域高度
+  const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
+  const maxWindowHeight = Math.floor(screenHeight * 0.7) // 最高 70% 屏幕高度
+
   const win = createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
     width: 380,
     height: 420,
     minHeight: 200,
-    maxHeight: 600,
+    maxHeight: maxWindowHeight,
+    transparent: true, // 透明背景，让页面圆角可见
+    hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options
   })
 
@@ -181,7 +187,7 @@ export function createVoiceInputWindow(options = {}) {
     height: 80,
     transparent: true, // 透明背景
     hasShadow: false, // 移除窗口阴影
-    backgroundColor: '#00000000', // 完全透明背景色
+    // backgroundColor: '#00000000', // 完全透明背景色
     ...options
   })
 
@@ -208,7 +214,8 @@ export function createAIAssistantWindow(options = {}) {
     height: 360, // 初始高度
     minHeight: 280,
     maxHeight: maxWindowHeight,
-    transparent: true, // 透明背景，由 Vue 界面控制背景色
+    transparent: true, // 透明背景，让页面圆角可见
+    hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options
   })
 

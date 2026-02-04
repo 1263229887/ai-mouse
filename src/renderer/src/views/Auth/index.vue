@@ -6,6 +6,9 @@ import { useDeviceStore, useAuthStore, useLanguageStore, useAIAssistantStore } f
 import { activateDevice } from '@/api'
 import SvgIcon from '@/components/SvgIcon/index.vue'
 
+// 等待样式应用后再显示内容
+const isReady = ref(false)
+
 const router = useRouter()
 const route = useRoute()
 
@@ -239,6 +242,15 @@ function initDeviceListeners() {
 }
 
 onMounted(() => {
+  // 等待样式应用后再显示内容
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        isReady.value = true
+      }, 100)
+    })
+  })
+
   // 独立授权页（非菜单栏内）：每次都要重新授权，清除缓存并重置状态
   if (!isInMenu.value) {
     console.log('[Auth] 独立授权页，清除缓存并强制重新授权')
@@ -263,201 +275,89 @@ function goToSettings() {
 </script>
 
 <template>
-  <div class="auth-container" :class="{ standalone: !isInMenu }">
-    <div class="content-wrapper">
+  <div
+    v-show="isReady"
+    class="w-full flex-1 flex justify-center items-center bg-#101214 select-none"
+    :class="isInMenu ? '' : 'min-h-100vh'"
+  >
+    <div class="flex flex-col items-center justify-center">
       <!-- 鼠标图标 -->
-      <div class="mouse-icon">
+      <div class="w-200 h-200 f-c-c">
         <SvgIcon name="mouse" size="100%" themed />
       </div>
 
       <!-- 标题 -->
-      <h1 class="title">AI Mouse</h1>
+      <h1 class="text-32 font-500 color-#fff m-0 mt-24">AI Mouse</h1>
 
       <!-- 授权成功状态 -->
       <template v-if="authStore.isAuthorized">
-        <span class="auth-status success">授权成功</span>
+        <span class="text-16 font-700 mt-8 color-#67C23A">授权成功</span>
 
-        <div class="device-info">
-          <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
-          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
-          <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
+        <div class="flex flex-col items-center gap-8 mt-24">
+          <span class="text-14 color-#909399"
+            >设备序列号: {{ deviceStore.serialNumber || '--' }}</span
+          >
+          <span class="text-14 color-#909399">设备版本号: {{ deviceStore.version || '--' }}</span>
+          <span class="text-14 color-#909399">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
 
         <!-- 只在独立授权页显示按键设置按钮 -->
-        <button v-if="!isInMenu" class="settings-btn" @click="goToSettings">按键设置</button>
+        <button
+          v-if="!isInMenu"
+          class="mt-32 py-12 w-200 text-14 font-500 color-#111 bg-#fff b-none rd-8 cursor-pointer hover:op-90"
+          @click="goToSettings"
+        >
+          按键设置
+        </button>
       </template>
 
       <!-- 授权中状态 -->
       <template v-else-if="authStore.isPending">
-        <span class="auth-status pending">授权中...</span>
-        <div class="device-info">
-          <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
-          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
-          <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
+        <div class="flex flex-col items-center gap-16 mt-32">
+          <el-icon class="color-#8BE6B0 loading-icon" :size="32">
+            <Loading />
+          </el-icon>
+          <span class="text-16 font-700 color-#34C759">授权检测中...</span>
+        </div>
+        <div class="flex flex-col items-center gap-8 mt-24">
+          <span class="text-14 color-#909399"
+            >设备序列号: {{ deviceStore.serialNumber || '--' }}</span
+          >
+          <span class="text-14 color-#909399">设备版本号: {{ deviceStore.version || '--' }}</span>
+          <span class="text-14 color-#909399">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
 
       <!-- 授权失败状态 -->
       <template v-else-if="authStore.authStatus === 'failed'">
-        <span class="auth-status error">{{ authStore.errorMessage || '授权失败' }}</span>
-        <div class="device-info">
-          <span class="info-text">设备序列号: {{ deviceStore.serialNumber || '--' }}</span>
-          <span class="info-text">设备版本号: {{ deviceStore.version || '--' }}</span>
-          <span class="info-text">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
+        <span class="text-16 font-500 mt-8 color-#F56C6C">{{
+          authStore.errorMessage || '授权失败'
+        }}</span>
+        <div class="flex flex-col items-center gap-8 mt-24">
+          <span class="text-14 color-#909399"
+            >设备序列号: {{ deviceStore.serialNumber || '--' }}</span
+          >
+          <span class="text-14 color-#909399">设备版本号: {{ deviceStore.version || '--' }}</span>
+          <span class="text-14 color-#909399">厂商ID: {{ deviceStore.vendorId || '--' }}</span>
         </div>
       </template>
 
       <!-- 离线/等待连接状态 -->
       <template v-else>
-        <div class="device-loading">
-          <el-icon class="loading-icon" :size="32">
+        <div class="flex flex-col items-center gap-16 mt-32">
+          <el-icon class="color-#8BE6B0 loading-icon" :size="32">
             <Loading />
           </el-icon>
-          <span class="loading-text">检测鼠标设备连接中...</span>
+          <span class="text-16 color-#606C80">检测鼠标设备连接中...</span>
         </div>
       </template>
     </div>
   </div>
 </template>
 
-<style lang="scss" scoped>
-.auth-container {
-  width: 100%;
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: var(--bg-color-page);
-  transition: background 0.3s ease;
-  position: relative;
-
-  // 独立页面时占满整个视口
-  &.standalone {
-    min-height: 100vh;
-  }
-}
-
-.content-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.mouse-icon {
-  width: clamp(10rem, 20vw, 12.5rem); // 200px
-  height: clamp(10rem, 20vw, 12.5rem);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.title {
-  font-family: 'Inter', sans-serif;
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  font-weight: 500;
-  color: var(--text-primary);
-  margin: 0;
-  margin-top: clamp(1rem, 2vh, 1.5rem); // 24px
-  transition: color 0.3s ease;
-}
-
-.auth-status {
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.875rem, 1.5vw, 1rem);
-  font-weight: 500;
-  margin-top: clamp(0.375rem, 0.8vh, 0.5rem);
-  transition: color 0.3s ease;
-
-  &.success {
-    color: var(--color-success);
-  }
-
-  &.pending {
-    color: var(--color-warning);
-  }
-
-  &.error {
-    color: var(--color-danger);
-  }
-}
-
-.device-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(0.375rem, 0.8vh, 0.5rem);
-  margin-top: clamp(1.25rem, 2.5vh, 1.5rem);
-}
-
-.info-text {
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.8rem, 1.4vw, 1rem);
-  font-weight: 400;
-  color: var(--text-secondary);
-  transition: color 0.3s ease;
-}
-
-.settings-btn {
-  margin-top: clamp(1.5rem, 3vh, 2rem);
-  padding: clamp(0.625rem, 1.2vh, 0.75rem) clamp(2rem, 4vw, 3rem);
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: clamp(0.75rem, 1.3vw, 0.875rem);
-  font-weight: 500;
-  color: #111111;
-  background: #ffffff;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    opacity 0.3s ease,
-    transform 0.2s ease,
-    box-shadow 0.3s ease;
-
-  &:hover {
-    opacity: 0.9;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.device-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(0.75rem, 2vh, 1.5rem);
-  margin-top: clamp(1.5rem, 3vh, 2rem);
-
-  .loading-icon {
-    color: var(--color-primary);
-    animation: rotate 1.5s linear infinite;
-  }
-
-  .loading-text {
-    font-family:
-      'PingFang SC',
-      -apple-system,
-      BlinkMacSystemFont,
-      sans-serif;
-    color: var(--text-secondary);
-    font-size: clamp(0.85rem, 1.5vw, 1rem);
-    transition: color 0.3s ease;
-  }
+<style scoped>
+.loading-icon {
+  animation: rotate 1.5s linear infinite;
 }
 
 @keyframes rotate {
