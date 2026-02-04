@@ -37,10 +37,6 @@ function isActive(path) {
         {{ item.name }}
       </span>
     </div>
-    <!-- 临时隐藏简体中文切换 -->
-    <!-- <div class="right-section">
-      <span class="language">简体中文</span>
-    </div> -->
   </nav>
 </template>
 
@@ -50,7 +46,7 @@ function isActive(path) {
   height: clamp(2.5rem, 4vh, 3rem); // 40px 左右高度
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 0 clamp(1.5rem, 3vw, 2rem); // 左右内边距
   box-sizing: border-box;
 }
@@ -84,21 +80,5 @@ function isActive(path) {
     -webkit-text-fill-color: transparent;
     transition: all 0.5s ease-in-out;
   }
-}
-
-.right-section {
-  display: flex;
-  align-items: center;
-}
-
-.language {
-  font-family:
-    'PingFang SC',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-weight: 500;
-  font-size: clamp(0.7rem, 1.5vw, 0.9rem); // 响应式字体大小
-  color: var(--text-primary); // 使用主题颜色
 }
 </style>

@@ -1,12 +1,16 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useDeviceStore, useAuthStore } from '@/stores'
+import TitleBar from '@/components/TitleBar/index.vue'
 
 const router = useRouter()
 const route = useRoute()
 const deviceStore = useDeviceStore()
 const authStore = useAuthStore()
+
+// 小窗口不显示标题栏
+const showTitleBar = computed(() => !route.path.startsWith('/mini/'))
 
 // ============ 全局设备状态管理 ============
 /**
@@ -163,6 +167,9 @@ onUnmounted(() => {
 
 <template>
   <div class="app-container">
+    <!-- 全局标题栏（小窗口不显示） -->
+    <TitleBar v-if="showTitleBar" />
+
     <!-- 按键事件视觉反馈 - 需虹灯带（左、右、下三边） -->
     <div v-if="showNeonBorder" class="neon-border">
       <div class="neon-left"></div>
@@ -172,7 +179,9 @@ onUnmounted(() => {
       <div class="neon-corner bottom-right"></div>
     </div>
 
-    <router-view />
+    <div class="main-view">
+      <router-view />
+    </div>
   </div>
 </template>
 
@@ -180,7 +189,16 @@ onUnmounted(() => {
 .app-container {
   width: 100%;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   position: relative;
+}
+
+.main-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 // 按键事件视觉反馈 - 需虹灯带样式（只显示左、右、下三边）

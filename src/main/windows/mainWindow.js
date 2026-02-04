@@ -31,6 +31,9 @@ export function createMainWindow() {
     maximizable: false, // 禁止最大化
     show: false,
     autoHideMenuBar: true,
+    // Windows/macOS: 统一使用无边框窗口 + 自定义标题栏
+    // 这样可以完全控制按钮显示（只显示最小化和关闭）
+    frame: false,
     // Windows 和 Linux 需要显式设置图标，macOS 使用 .icns 文件
     ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {

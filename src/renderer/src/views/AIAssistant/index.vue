@@ -695,7 +695,10 @@ onMounted(async () => {
     handleClose()
   })
 
-  // 添加开场白作为第一条 AI 消息
+  // 确保配置已加载，然后添加开场白
+  if (!aiAssistantStore.isLoaded) {
+    await aiAssistantStore.fetchConfig()
+  }
   if (aiAssistantStore.prologue) {
     chatMessages.value.push({
       role: 'assistant',
@@ -852,13 +855,25 @@ const handleMouseUp = () => {
         </div>
       </div>
 
-      <!-- 底部状态栏 -->
+      <!-- 底部状态栏（常驻） -->
       <div
-        class="flex items-center gap-8 shrink-0 mt-12 pt-8 b-t-1 b-t-solid b-t-#303030 cursor-pointer"
-        @click="toggleMute"
+        class="flex items-center gap-8 shrink-0 mt-12 pt-8 b-t-1 b-t-solid b-t-#303030"
+        :class="{ 'cursor-pointer': isPlaying }"
+        @click="isPlaying ? toggleMute() : null"
       >
-        <!-- 播报中 -->
-        <template v-if="!isMuted">
+        <!-- 静音状态（仅在播报中显示） -->
+        <template v-if="isPlaying && isMuted">
+          <span class="inline-flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="w-16 h-16 color-#909399">
+              <path
+                d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
+              />
+            </svg>
+          </span>
+          <span class="text-12 color-#909399 ml-3">你已静音</span>
+        </template>
+        <!-- 音波图标（播报中动画/非播报时静态） -->
+        <template v-else>
           <span
             class="playing-indicator inline-flex items-end gap-2px h-14"
             :class="{ active: isPlaying }"
@@ -868,17 +883,7 @@ const handleMouseUp = () => {
             <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
             <span class="wave-bar w-3 bg-#909399 rd-1px"></span>
           </span>
-        </template>
-        <!-- 静音 -->
-        <template v-else>
-          <span class="inline-flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="currentColor" class="w-16 h-16 color-#909399">
-              <path
-                d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"
-              />
-            </svg>
-          </span>
-          <span class="text-12 color-#909399 ml-3">你已静音</span>
+          <span v-if="isPlaying" class="text-12 color-#909399 ml-3">点击左侧图标静音</span>
         </template>
       </div>
     </div>
