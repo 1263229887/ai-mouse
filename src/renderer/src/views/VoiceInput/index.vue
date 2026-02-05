@@ -325,41 +325,89 @@ const handleClose = async () => {
 const executeCloseAfterFinal = async () => {
   isWaitingForFinal = false
 
-  // 立即更新状态
+  // 等待消息队列处理完成（最多等待 3 秒）
+  const maxWaitTime = 3000
+  const checkInterval = 100
+  let waited = 0
+
+  while ((messageQueue.length > 0 || isProcessing) && waited < maxWaitTime) {
+    console.log(
+      '[\u8bed\u97f3\u8f93\u5165] \u7b49\u5f85\u961f\u5217\u5904\u7406\u5b8c\u6210\uff0c\u961f\u5217\u957f\u5ea6:',
+      messageQueue.length,
+      '\u5904\u7406\u4e2d:',
+      isProcessing
+    )
+    await new Promise((resolve) => setTimeout(resolve, checkInterval))
+    waited += checkInterval
+  }
+
+  if (messageQueue.length > 0 || isProcessing) {
+    console.warn(
+      '[\u8bed\u97f3\u8f93\u5165] \u961f\u5217\u5904\u7406\u8d85\u65f6\uff0c\u5f3a\u5236\u5173\u95ed\uff0c\u672a\u5904\u7406\u6d88\u606f\u6570:',
+      messageQueue.length
+    )
+  } else {
+    console.log('[\u8bed\u97f3\u8f93\u5165] \u961f\u5217\u5904\u7406\u5b8c\u6210')
+  }
+
+  // 更新状态
   isRecording.value = false
   connectionStatus.value = 'stopped'
   onlineCharCount = 0
 
-  console.log('[语音输入] 收到结束标识，状态已更新，延迟 2 秒后关闭窗口...')
+  console.log(
+    '[\u8bed\u97f3\u8f93\u5165] \u72b6\u6001\u5df2\u66f4\u65b0\uff0c\u5ef6\u8fdf 1 \u79d2\u540e\u5173\u95ed\u7a97\u53e3...'
+  )
 
-  // 延迟 2 秒后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
+  // 延迟 1 秒后关闭窗口（防止太快关闭用户看不到最后的粘贴结果）
   setTimeout(() => {
     window.api?.window?.close()
-  }, 2000)
+  }, 1000)
 }
 
-// 自动关闭：收到后端结束标识后延迟2秒关闭
+// 自动关闭：收到后端结束标识后等待队列处理完成后关闭
 const handleAutoClose = async () => {
   if (isClosing) return
   isClosing = true
 
-  console.log('[语音输入] 开始自动关闭流程，延迟2秒...')
+  console.log('[语音输入] 开始自动关闭流程...')
 
   // 发送停止信号给服务端
   voiceService.stop()
 
-  // 延迟2秒后关闭录音和窗口
-  setTimeout(async () => {
-    console.log('[语音输入] 延迟结束，关闭录音和窗口')
-    isRecording.value = false
-    connectionStatus.value = 'stopped'
-    onlineCharCount = 0
+  // 等待消息队列处理完成（最多等待 3 秒）
+  const maxWaitTime = 3000
+  const checkInterval = 100
+  let waited = 0
 
-    // 再延迟300ms关闭窗口
-    setTimeout(() => {
-      window.api?.window?.close()
-    }, 300)
-  }, 2000)
+  while ((messageQueue.length > 0 || isProcessing) && waited < maxWaitTime) {
+    console.log(
+      '[语音输入] 自动关闭 - 等待队列处理完成，队列长度:',
+      messageQueue.length,
+      '处理中:',
+      isProcessing
+    )
+    await new Promise((resolve) => setTimeout(resolve, checkInterval))
+    waited += checkInterval
+  }
+
+  if (messageQueue.length > 0 || isProcessing) {
+    console.warn('[语音输入] 自动关闭 - 队列处理超时，未处理消息数:', messageQueue.length)
+  } else {
+    console.log('[语音输入] 自动关闭 - 队列处理完成')
+  }
+
+  // 更新状态
+  isRecording.value = false
+  connectionStatus.value = 'stopped'
+  onlineCharCount = 0
+
+  console.log('[语音输入] 延迟 1 秒后关闭窗口')
+
+  // 延迟 1 秒后关闭窗口
+  setTimeout(() => {
+    window.api?.window?.close()
+  }, 1000)
 }
 
 // ============ 拖拽功能 ============

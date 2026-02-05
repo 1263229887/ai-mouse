@@ -699,18 +699,27 @@ onMounted(async () => {
     handleClose()
   })
 
-  // 确保配置已加载，然后添加开场白
+  // 配置加载和服务启动并行执行，不阻塞
+  // 异步加载配置并添加开场白（不等待）
   if (!aiAssistantStore.isLoaded) {
-    await aiAssistantStore.fetchConfig()
-  }
-  if (aiAssistantStore.prologue) {
+    aiAssistantStore.fetchConfig().then(() => {
+      // 配置加载完成后，如果有开场白且尚未添加，则插入到开头
+      if (aiAssistantStore.prologue && chatMessages.value.length === 0) {
+        chatMessages.value.unshift({
+          role: 'assistant',
+          content: aiAssistantStore.prologue
+        })
+      }
+    })
+  } else if (aiAssistantStore.prologue) {
+    // 配置已加载，直接添加开场白
     chatMessages.value.push({
       role: 'assistant',
       content: aiAssistantStore.prologue
     })
   }
 
-  // 直接启动服务
+  // 立即启动服务（不等待配置加载）
   recordingStatus.value = '正在连接...'
   startService()
 })

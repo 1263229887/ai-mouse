@@ -118,28 +118,16 @@ export class AIAssistantWebSocket {
     const authStore = useAuthStore()
     const aiAssistantStore = useAIAssistantStore()
 
-    // 等待 AI 助手配置加载完成（最多等待 3 秒）
-    if (!aiAssistantStore.isLoaded && !aiAssistantStore.isLoading) {
-      // 如果还没开始加载，主动触发加载
-      console.log('[AIAssistantWS] AI 助手配置未加载，主动触发加载')
-      aiAssistantStore.fetchConfig()
-    }
-
+    // 如果配置正在加载，简短等待（最多 500ms）
     if (aiAssistantStore.isLoading) {
-      console.log('[AIAssistantWS] 等待 AI 助手配置加载完成...')
-      const maxWaitTime = 3000
-      const checkInterval = 100
+      console.log('[AIAssistantWS] 配置加载中，简短等待...')
+      const maxWaitTime = 500
+      const checkInterval = 50
       let waited = 0
 
       while (aiAssistantStore.isLoading && waited < maxWaitTime) {
         await new Promise((resolve) => setTimeout(resolve, checkInterval))
         waited += checkInterval
-      }
-
-      if (aiAssistantStore.isLoading) {
-        console.warn('[AIAssistantWS] 等待 AI 助手配置超时，使用当前值')
-      } else {
-        console.log('[AIAssistantWS] AI 助手配置加载完成')
       }
     }
 
