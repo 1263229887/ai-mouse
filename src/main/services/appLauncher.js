@@ -1,10 +1,10 @@
 /**
  * 应用打开服务模块（生产级）
- * 核心原则：能拉起即成功，不做脆弱的“是否安装”预判
+ * 核心原则：能拉起即成功，不做脆弱的"是否安装"预判
  */
 
 import { shell } from 'electron'
-import { exec } from 'child_process'
+import { exec, spawn } from 'child_process'
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 
@@ -50,16 +50,21 @@ function openWindowsApp({ appName, winExeName }) {
       .then((exePath) => {
         if (exePath) {
           console.log('[AppLauncher][Win] 找到应用路径:', exePath)
-          // 启动应用
-          exec(`"${exePath}"`, { shell: true }, (error) => {
-            if (error) {
-              console.log('[AppLauncher][Win] 启动失败:', error.message)
-              resolve({ success: false, error: '启动应用失败' })
-            } else {
-              console.log('[AppLauncher][Win] 启动成功')
-              resolve({ success: true })
-            }
-          })
+          // 使用 spawn 启动应用，设置 detached 让应用独立运行
+          try {
+            const child = spawn(exePath, [], {
+              detached: true,
+              stdio: 'ignore',
+              shell: false
+            })
+            // 解除父进程对子进程的引用，让子进程独立运行
+            child.unref()
+            console.log('[AppLauncher][Win] 启动成功')
+            resolve({ success: true })
+          } catch (error) {
+            console.log('[AppLauncher][Win] 启动失败:', error.message)
+            resolve({ success: false, error: '启动应用失败' })
+          }
         } else {
           console.log('[AppLauncher][Win] 未找到应用')
           resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
