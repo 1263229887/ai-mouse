@@ -6,7 +6,7 @@
 import { shell } from 'electron'
 import { exec, spawn } from 'child_process'
 import { existsSync } from 'fs'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 
 /**
  * 打开本地应用
@@ -45,7 +45,7 @@ function openWindowsApp({ appName, winExeName }) {
   return new Promise((resolve) => {
     console.log('[AppLauncher][Win] 开始查找应用:', appName)
 
-    // 通过注册表查找应用安装路径
+    // 方式1：通过注册表查找应用安装路径
     findAppInRegistry(appName, winExeName)
       .then((exePath) => {
         if (exePath) {
@@ -63,18 +63,179 @@ function openWindowsApp({ appName, winExeName }) {
             resolve({ success: true })
           } catch (error) {
             console.log('[AppLauncher][Win] 启动失败:', error.message)
-            resolve({ success: false, error: '启动应用失败' })
+            // 注册表方式启动失败，尝试开始菜单方式
+            tryStartMenuLaunch(appName, winExeName, resolve)
           }
         } else {
-          console.log('[AppLauncher][Win] 未找到应用')
-          resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+          console.log('[AppLauncher][Win] 注册表未找到，尝试开始菜单方式')
+          // 方式2：通过开始菜单应用列表查找
+          tryStartMenuLaunch(appName, winExeName, resolve)
         }
       })
       .catch((err) => {
         console.log('[AppLauncher][Win] 查找失败:', err.message)
-        resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+        // 注册表查找失败，尝试开始菜单方式
+        tryStartMenuLaunch(appName, winExeName, resolve)
       })
   })
+}
+
+/**
+ * 通过开始菜单应用列表查找并启动应用
+ * 使用 PowerShell Get-StartApps 命令查询
+ */
+function tryStartMenuLaunch(appName, winExeName, resolve) {
+  console.log('[AppLauncher][Win] 尝试从开始菜单查找:', appName)
+
+  // 构建搜索关键词列表
+  const searchNames = [appName]
+  if (winExeName) {
+    const exeNames = winExeName
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean)
+    for (const exe of exeNames) {
+      const englishName = exe
+        .replace(/\.exe$/i, '')
+        .replace(/(Launcher|Updater|Client|Desktop|Scheme)$/i, '')
+      if (englishName && englishName.length >= 2 && !searchNames.includes(englishName)) {
+        searchNames.push(englishName)
+      }
+    }
+  }
+
+  // 使用 PowerShell 获取开始菜单应用列表
+  const psCommand = `Get-StartApps | ConvertTo-Json -Compress`
+  exec(
+    `powershell -Command "${psCommand}"`,
+    { timeout: 10000, encoding: 'utf8' },
+    (error, stdout) => {
+      if (error || !stdout) {
+        console.log('[AppLauncher][Win] Get-StartApps 失败:', error?.message)
+        resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+        return
+      }
+
+      try {
+        const apps = JSON.parse(stdout)
+        if (!Array.isArray(apps)) {
+          resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+          return
+        }
+
+        console.log('[AppLauncher][Win] 开始菜单应用数量:', apps.length)
+
+        // 按搜索关键词顺序查找匹配的应用
+        for (const searchName of searchNames) {
+          const lowerSearch = searchName.toLowerCase()
+          const matchedApp = apps.find((app) => {
+            const name = (app.Name || '').toLowerCase()
+            return name === lowerSearch || name.includes(lowerSearch)
+          })
+
+          if (matchedApp && matchedApp.AppID) {
+            console.log('[AppLauncher][Win] 找到开始菜单应用:', matchedApp.Name, matchedApp.AppID)
+            // 使用 explorer.exe shell:AppsFolder\{AppID} 启动
+            try {
+              const child = spawn('explorer.exe', [`shell:AppsFolder\\${matchedApp.AppID}`], {
+                detached: true,
+                stdio: 'ignore',
+                shell: false
+              })
+              child.unref()
+              console.log('[AppLauncher][Win] 通过开始菜单启动成功')
+              resolve({ success: true })
+              return
+            } catch (launchError) {
+              console.log('[AppLauncher][Win] 启动失败:', launchError.message)
+            }
+          }
+        }
+
+        console.log('[AppLauncher][Win] 开始菜单中未找到，尝试常见目录搜索')
+        // 方式3：在常见安装目录中搜索
+        tryCommonPathsSearch(winExeName, resolve)
+      } catch (parseError) {
+        console.log('[AppLauncher][Win] 解析开始菜单列表失败:', parseError.message)
+        tryCommonPathsSearch(winExeName, resolve)
+      }
+    }
+  )
+}
+
+/**
+ * 在常见安装目录中搜索应用
+ * 作为最后的后备方案，搜索 Program Files、AppData 等目录
+ */
+function tryCommonPathsSearch(winExeName, resolve) {
+  if (!winExeName) {
+    resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+    return
+  }
+
+  const exeNames = winExeName
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean)
+  if (exeNames.length === 0) {
+    resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
+    return
+  }
+
+  console.log('[AppLauncher][Win] 尝试在常见目录中搜索:', exeNames)
+
+  // 常见安装目录
+  const userProfile = process.env.USERPROFILE || ''
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
+  const localAppData = process.env.LOCALAPPDATA || `${userProfile}\\AppData\\Local`
+  const roamingAppData = process.env.APPDATA || `${userProfile}\\AppData\\Roaming`
+
+  // 构建搜索路径：基于 exe 名称推断可能的安装目录
+  const searchPaths = []
+  for (const exe of exeNames) {
+    const appDirName = exe
+      .replace(/\.exe$/i, '')
+      .replace(/(Launcher|Updater|Client|Desktop|Scheme)$/i, '')
+    if (appDirName && appDirName.length >= 2) {
+      // 在各个常见目录下搜索
+      searchPaths.push(
+        join(programFiles, appDirName, exe),
+        join(programFilesX86, appDirName, exe),
+        join(localAppData, appDirName, exe),
+        join(roamingAppData, appDirName, exe),
+        join(localAppData, 'Programs', appDirName, exe),
+        // 一些特殊的目录结构
+        join(programFiles, appDirName, 'Bin', exe),
+        join(programFilesX86, appDirName, 'Bin', exe),
+        join(localAppData, appDirName, 'Bin', exe)
+      )
+    }
+  }
+
+  // 遍历搜索路径
+  for (const searchPath of searchPaths) {
+    console.log('[AppLauncher][Win] 检查路径:', searchPath)
+    if (existsSync(searchPath)) {
+      console.log('[AppLauncher][Win] 在常见目录找到:', searchPath)
+      try {
+        const child = spawn(searchPath, [], {
+          detached: true,
+          stdio: 'ignore',
+          shell: false
+        })
+        child.unref()
+        console.log('[AppLauncher][Win] 启动成功')
+        resolve({ success: true })
+        return
+      } catch (err) {
+        console.log('[AppLauncher][Win] 启动失败:', err.message)
+      }
+    }
+  }
+
+  console.log('[AppLauncher][Win] 常见目录中未找到应用')
+  resolve({ success: false, error: '未找到该应用，请先安装后再使用' })
 }
 
 /**
@@ -99,13 +260,27 @@ function findAppInRegistry(appName, exeName) {
       : []
     console.log('[AppLauncher][Win] exe 名称列表:', exeNames)
 
-    // 同时搜索中文名和英文名（从第一个 exeName 提取）
-    // 例如：appName="钉钉", exeName="DingTalk.exe" -> 搜索 "钉钉" 和 "DingTalk"
-    const firstExeName = exeNames[0] || ''
-    const englishName = firstExeName ? firstExeName.replace(/\.exe$/i, '') : ''
+    // 构建搜索名称列表：中文名 + 所有 exe 的英文名
+    // 例如：appName="钉钉", exeNames=["DingtalkLauncher.exe","DingTalkUpdater.exe"]
+    // -> 搜索 ["钉钉", "DingtalkLauncher", "DingTalkUpdater", "DingTalk"]
     const searchNames = [appName]
-    if (englishName && englishName.toLowerCase() !== appName.toLowerCase()) {
-      searchNames.push(englishName)
+    const addedNames = new Set([appName.toLowerCase()])
+
+    for (const exe of exeNames) {
+      const englishName = exe.replace(/\.exe$/i, '')
+      if (englishName && !addedNames.has(englishName.toLowerCase())) {
+        searchNames.push(englishName)
+        addedNames.add(englishName.toLowerCase())
+      }
+    }
+
+    // 额外添加常见的简化名称（去掉 Launcher/Updater 等后缀）
+    for (const exe of exeNames) {
+      const baseName = exe.replace(/\.exe$/i, '').replace(/(Launcher|Updater|Client|Desktop)$/i, '')
+      if (baseName && baseName.length >= 2 && !addedNames.has(baseName.toLowerCase())) {
+        searchNames.push(baseName)
+        addedNames.add(baseName.toLowerCase())
+      }
     }
 
     console.log('[AppLauncher][Win] 搜索名称:', searchNames)
@@ -176,8 +351,23 @@ function extractExePathFromRegistry(output, exeNames) {
     // 移除引号
     iconPath = iconPath.replace(/^"|"$/g, '')
     console.log('[AppLauncher][Win] 找到 DisplayIcon:', iconPath)
+
+    // 检查 DisplayIcon 是否就是我们要找的 exe
     if (iconPath.toLowerCase().endsWith('.exe') && existsSync(iconPath)) {
-      return iconPath
+      const iconExeName = basename(iconPath)
+      // 如果是目标 exe 之一，直接返回
+      if (exeNames.some((name) => name.toLowerCase() === iconExeName.toLowerCase())) {
+        return iconPath
+      }
+      // 否则从 DisplayIcon 的目录下找目标 exe
+      const iconDir = dirname(iconPath)
+      for (const exeName of exeNames) {
+        const possiblePath = join(iconDir, exeName)
+        console.log('[AppLauncher][Win] 检查 DisplayIcon 目录:', possiblePath)
+        if (existsSync(possiblePath)) {
+          return possiblePath
+        }
+      }
     }
   }
 
