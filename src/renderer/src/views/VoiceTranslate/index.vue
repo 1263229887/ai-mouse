@@ -82,6 +82,11 @@ const targetLanguage = computed(() => deviceStore.translateTarget.chinese || '�
 const sourceIsoCode = computed(() => deviceStore.translateSource.isoCode || 'ZH')
 const targetIsoCode = computed(() => deviceStore.translateTarget.isoCode || 'EN')
 
+// 是否正在关闭中（防止重复触发）
+let isClosing = false
+// 是否正在等待服务端返回结束标识
+let isWaitingForFinal = false
+
 // ============ 动态高度和智能滚动 ============
 const originalContainer = ref(null)
 const translateContainer = ref(null)
@@ -171,6 +176,14 @@ watch(
 // 处理WebSocket消息
 const handleMessage = (data) => {
   if (!data || typeof data !== 'object') return
+
+  // 检测结束标识（服务端返回 is_final: true）
+  const isEndSignal = data.is_final === true || data.status === 'end' || data.status === 'finished'
+  if (isEndSignal && isWaitingForFinal) {
+    console.log('[语音翻译] 收到结束标识，执行关闭流程')
+    executeCloseAfterFinal()
+    return
+  }
 
   const { mode, id, text } = data
 
@@ -262,34 +275,70 @@ onMounted(async () => {
 onUnmounted(() => {
   voiceTranslateService.stop()
   window.electron?.ipcRenderer?.removeAllListeners?.('voice-translate:close-and-paste')
+  // 重置状态
+  isClosing = false
+  isWaitingForFinal = false
 })
 
 // 关闭窗口并粘贴译文
 const handleClose = async () => {
-  await voiceTranslateService.stop()
+  if (isClosing) return
+  isClosing = true
+
+  console.log('[语音翻译] 开始关闭流程，发送停止信号并等待服务端确认...')
   isRecording.value = false
-  recordingStatus.value = '停止录制'
+  recordingStatus.value = '停止录制中...'
+
+  // 设置等待结束标识的标志
+  isWaitingForFinal = true
+
+  // 发送停止信号给服务端
+  await voiceTranslateService.stop()
+
+  // 设置超时保护：如果 5 秒内没收到 is_final，强制执行关闭
+  setTimeout(() => {
+    if (isWaitingForFinal) {
+      console.log('[语音翻译] 等待结束标识超时，强制执行关闭')
+      executeCloseAfterFinal()
+    }
+  }, 5000)
+}
+
+// 收到结束标识后执行的关闭流程
+const executeCloseAfterFinal = async () => {
+  isWaitingForFinal = false
+
+  // 立即更新状态
+  isRecording.value = false
+  recordingStatus.value = '已停止'
+
+  console.log('[语音翻译] 收到结束标识，立即执行粘贴操作...')
 
   const translation = translateDisplay.value
   if (translation && translation !== '等待翻译结果...') {
     try {
+      // 立即执行粘贴
       await window.api?.clipboard?.writeText(translation)
       translateStatus.value = 'paste_waiting'
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await new Promise((resolve) => setTimeout(resolve, 500))
       translateStatus.value = 'pasting'
       await window.api?.clipboard?.paste()
       translateStatus.value = 'success'
       recordingStatus.value = '已完成'
-      setTimeout(() => window.api?.window?.close(), 1500)
+
+      // 粘贴完成后延迟 2 秒关闭窗口
+      console.log('[语音翻译] 粘贴完成，延迟 2 秒后关闭窗口...')
+      setTimeout(() => window.api?.window?.close(), 2000)
     } catch (error) {
       console.error('[语音翻译] 粘贴译文失败:', error)
       translateStatus.value = 'error'
       recordingStatus.value = '粘贴失败'
-      setTimeout(() => window.api?.window?.close(), 1000)
+      setTimeout(() => window.api?.window?.close(), 2000)
     }
   } else {
     recordingStatus.value = '无译文'
-    setTimeout(() => window.api?.window?.close(), 300)
+    // 无译文也延迟 2 秒关闭
+    setTimeout(() => window.api?.window?.close(), 2000)
   }
 }
 

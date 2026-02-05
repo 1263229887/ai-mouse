@@ -27,6 +27,8 @@ let isProcessing = false
 
 // 是否正在关闭中（防止重复触发）
 let isClosing = false
+// 是否正在等待服务端返回结束标识
+let isWaitingForFinal = false
 
 // 拖拽相关状态
 const isDragging = ref(false)
@@ -45,7 +47,15 @@ const handleMessage = async (data) => {
   // 检测结束标识（服务端返回 is_final: true 或 status 为结束状态）
   const isEndSignal = data.is_final === true || data.status === 'end' || data.status === 'finished'
   if (isEndSignal) {
-    console.log('[语音输入] 收到结束标识，准备延迟关闭窗口')
+    console.log('[语音输入] 收到结束标识')
+    // 如果是手动关闭触发的等待，执行关闭流程
+    if (isWaitingForFinal) {
+      console.log('[语音输入] 手动关闭等待结束标识完成，执行关闭流程')
+      executeCloseAfterFinal()
+      return
+    }
+    // 否则是自动结束（如长按松开），走原有的 handleAutoClose 逻辑
+    console.log('[语音输入] 自动结束，准备延迟关闭窗口')
     handleAutoClose()
     return
   }
@@ -280,21 +290,45 @@ onUnmounted(() => {
   messageQueue.length = 0 // 清空队列
   isProcessing = false
   isClosing = false
+  isWaitingForFinal = false
 })
 
 const handleClose = async () => {
   if (isClosing) return
   isClosing = true
 
+  console.log('[语音输入] 开始关闭流程，发送停止信号并等待服务端确认...')
+
+  // 设置等待结束标识的标志
+  isWaitingForFinal = true
+
+  // 发送停止信号给服务端
   await voiceService.stop()
+
+  // 设置超时保护：如果 5 秒内没收到 is_final，强制执行关闭
+  setTimeout(() => {
+    if (isWaitingForFinal) {
+      console.log('[语音输入] 等待结束标识超时，强制执行关闭')
+      executeCloseAfterFinal()
+    }
+  }, 5000)
+}
+
+// 收到结束标识后执行的关闭流程（手动关闭时）
+const executeCloseAfterFinal = async () => {
+  isWaitingForFinal = false
+
+  // 立即更新状态
   isRecording.value = false
   connectionStatus.value = 'stopped'
   onlineCharCount = 0
 
-  // 延迟后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
+  console.log('[语音输入] 收到结束标识，状态已更新，延迟 2 秒后关闭窗口...')
+
+  // 延迟 2 秒后关闭窗口（麦克风由窗口 closed 事件自动检测并关闭）
   setTimeout(() => {
     window.api?.window?.close()
-  }, 300)
+  }, 2000)
 }
 
 // 自动关闭：收到后端结束标识后延迟2秒关闭
