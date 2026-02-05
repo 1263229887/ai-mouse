@@ -18,7 +18,8 @@ body {
   font-family: 'PingFang_SC', 'Microsoft YaHei', -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  background: #0B0D0F;
+  /* 背景色由各页面/布局组件自行控制，以支持透明窗口 */
+  background: transparent;
   color: #cfd3dc;
   -webkit-font-smoothing: antialiased;
 }

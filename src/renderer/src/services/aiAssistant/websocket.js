@@ -160,6 +160,7 @@ export class AIAssistantWebSocket {
       language: 'ZH',
       user_id: userId,
       last_reply: '',
+      is_chat: true,
       is_say_hello_play: false,
       speaker_id: '1',
       en_speaker_id: '13',

@@ -60,6 +60,11 @@ const routes = [
     path: '/mini/ai-assistant',
     name: 'MiniAIAssistant',
     component: () => import('@/views/AIAssistant/index.vue')
+  },
+  {
+    path: '/mini/toast',
+    name: 'MiniToast',
+    component: () => import('@/views/Toast/index.vue')
   }
 ]
 

@@ -12,5 +12,8 @@ export {
   createBusinessCWindow,
   createVoiceTranslateWindow,
   createVoiceInputWindow,
-  createAIAssistantWindow
+  createAIAssistantWindow,
+  createToastWindow,
+  getRunningBusinessWindow,
+  getBusinessWindowName
 } from './miniWindow'

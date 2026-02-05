@@ -13,6 +13,7 @@ import {
   getDeviceMicrophoneEnable,
   setDeviceMicrophoneEnable
 } from '../services'
+import { IPC_CHANNELS } from '../ipc/channels'
 
 /**
  * 小窗口类型枚举
@@ -29,7 +30,9 @@ export const MiniWindowType = {
   // 语音输入
   VOICE_INPUT: 'mini-voice-input',
   // AI 语音助手
-  AI_ASSISTANT: 'mini-ai-assistant'
+  AI_ASSISTANT: 'mini-ai-assistant',
+  // Toast 提示窗口
+  TOAST: 'mini-toast'
 }
 
 /**
@@ -168,9 +171,13 @@ export function createVoiceTranslateWindow(options = {}) {
     ...options
   })
 
-  // 窗口关闭时检测并关闭麦克风
+  // 窗口关闭时检测并关闭麦克风，并广播业务停止消息
   win.on('closed', () => {
     checkAndDisableMicrophone('VoiceTranslate')
+    // 广播业务停止消息，解锁主窗口
+    windowManager.broadcast(IPC_CHANNELS.BUSINESS.STOP, {
+      businessMode: 'voice-translate'
+    })
   })
 
   return win
@@ -191,9 +198,13 @@ export function createVoiceInputWindow(options = {}) {
     ...options
   })
 
-  // 窗口关闭时检测并关闭麦克风
+  // 窗口关闭时检测并关闭麦克风，并广播业务停止消息
   win.on('closed', () => {
     checkAndDisableMicrophone('VoiceInput')
+    // 广播业务停止消息，解锁主窗口
+    windowManager.broadcast(IPC_CHANNELS.BUSINESS.STOP, {
+      businessMode: 'voice-input'
+    })
   })
 
   return win
@@ -219,9 +230,13 @@ export function createAIAssistantWindow(options = {}) {
     ...options
   })
 
-  // 窗口关闭时检测并关闭麦克风
+  // 窗口关闭时检测并关闭麦克风，并广播业务停止消息
   win.on('closed', () => {
     checkAndDisableMicrophone('AIAssistant')
+    // 广播业务停止消息，解锁主窗口
+    windowManager.broadcast(IPC_CHANNELS.BUSINESS.STOP, {
+      businessMode: 'ai-assistant'
+    })
   })
 
   return win
@@ -253,5 +268,136 @@ function checkAndDisableMicrophone(source) {
     }
   } catch (error) {
     console.error(`[${source}] 检测/关闭麦克风异常:`, error)
+  }
+}
+
+/**
+ * 创建 Toast 提示窗口
+ * 屏幕居中显示，完全透明窗口，最上层显示
+ * @param {string} message - 提示消息
+ * @param {number} duration - 显示时长（毫秒）
+ * @returns {BrowserWindow}
+ */
+export function createToastWindow(message = '', duration = 2000) {
+  console.log('[Toast] 创建 Toast 窗口:', message)
+
+  // 如果已有 Toast 窗口，先关闭
+  if (windowManager.has(MiniWindowType.TOAST)) {
+    const existingWindow = windowManager.get(MiniWindowType.TOAST)
+    if (existingWindow && !existingWindow.isDestroyed()) {
+      existingWindow.close()
+    }
+  }
+
+  // 获取屏幕完整尺寸，确保居中
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().bounds
+  const windowWidth = 360
+  const windowHeight = 100
+  const x = Math.floor((screenWidth - windowWidth) / 2)
+  const y = Math.floor((screenHeight - windowHeight) / 2)
+
+  console.log('[Toast] 窗口位置:', { x, y, windowWidth, windowHeight })
+
+  const toastWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x,
+    y,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    focusable: false,
+    show: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  // 设置最高层级的置顶
+  toastWindow.setAlwaysOnTop(true, 'screen-saver')
+
+  // 注册到窗口管理器
+  windowManager.register(MiniWindowType.TOAST, toastWindow)
+
+  // 加载 Toast 页面
+  const encodedMessage = encodeURIComponent(message)
+  const route = `/mini/toast?message=${encodedMessage}&duration=${duration}`
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    toastWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${route}`)
+  } else {
+    toastWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      hash: route
+    })
+  }
+
+  // 页面加载完成后显示（添加延迟确保 Vue 组件渲染完成）
+  toastWindow.webContents.once('did-finish-load', () => {
+    // 延迟 150ms 确保 Vue 组件完全渲染
+    setTimeout(() => {
+      console.log('[Toast] 页面渲染完成，显示')
+      if (!toastWindow.isDestroyed()) {
+        toastWindow.show()
+        toastWindow.setAlwaysOnTop(true, 'screen-saver')
+      }
+    }, 150)
+  })
+
+  // 自动关闭
+  setTimeout(() => {
+    if (toastWindow && !toastWindow.isDestroyed()) {
+      console.log('[Toast] 自动关闭')
+      toastWindow.close()
+    }
+  }, duration)
+
+  return toastWindow
+}
+
+/**
+ * 检查是否有业务窗口正在运行
+ * @returns {string|null} 返回正在运行的业务窗口类型，没有则返回 null
+ */
+export function getRunningBusinessWindow() {
+  const businessWindows = [
+    MiniWindowType.VOICE_TRANSLATE,
+    MiniWindowType.VOICE_INPUT,
+    MiniWindowType.AI_ASSISTANT
+  ]
+
+  for (const windowType of businessWindows) {
+    if (windowManager.has(windowType)) {
+      const win = windowManager.get(windowType)
+      if (win && !win.isDestroyed()) {
+        return windowType
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * 获取业务窗口类型的中文名称
+ * @param {string} windowType - 窗口类型
+ * @returns {string}
+ */
+export function getBusinessWindowName(windowType) {
+  switch (windowType) {
+    case MiniWindowType.VOICE_TRANSLATE:
+      return '语音翻译'
+    case MiniWindowType.VOICE_INPUT:
+      return '语音输入'
+    case MiniWindowType.AI_ASSISTANT:
+      return 'AI语音助手'
+    default:
+      return '未知业务'
   }
 }

@@ -13,6 +13,9 @@ import {
   createVoiceTranslateWindow,
   createVoiceInputWindow,
   createAIAssistantWindow,
+  createToastWindow,
+  getRunningBusinessWindow,
+  getBusinessWindowName,
   MiniWindowType
 } from '../windows'
 import {
@@ -294,9 +297,8 @@ function handleKeyEventInMain(deviceId, index, status) {
   // 长按按键：按下开始，松开停止
   if (isLongPressKey) {
     if (status === KEY_STATUS.PRESSED) {
-      if (!currentRecordingState.isRecording) {
-        startRecording(deviceId, index, businessMode)
-      }
+      // 长按按下，尝试启动业务（startRecording 内部会检查互斥并显示 Toast）
+      startRecording(deviceId, index, businessMode)
     } else if (status === KEY_STATUS.RELEASED) {
       // 长按松开，如果是长按触发的录音则停止
       if (currentRecordingState.isRecording && currentRecordingState.keyIndex === index) {
@@ -330,6 +332,16 @@ function startRecording(deviceId, keyIndex, businessMode) {
     return
   }
 
+  // ============ 业务互斥检查 ============
+  const runningBusiness = getRunningBusinessWindow()
+  if (runningBusiness) {
+    const runningBusinessName = getBusinessWindowName(runningBusiness)
+    console.log('[Main] 已有业务正在运行，拒绝启动新业务:', runningBusinessName)
+    // 显示 Toast 提示
+    createToastWindow(`${runningBusinessName}正在进行中`, 2000)
+    return
+  }
+
   // 如果是鼠标录音，启用鼠标麦克风
   // 此处调用 SDK 函数是安全的，因为已经通过 setImmediate 脱离了回调线程
   if (deviceConfig.recordingSource === RECORDING_SOURCE.MOUSE && deviceId) {
@@ -353,6 +365,11 @@ function startRecording(deviceId, keyIndex, businessMode) {
     keyIndex,
     deviceId
   }
+
+  // 通知渲染进程业务开始（用于锁定主窗口）
+  windowManager.broadcast(IPC_CHANNELS.BUSINESS.START, {
+    businessMode
+  })
 
   // 根据业务模式创建对应窗口
   switch (businessMode) {
@@ -412,6 +429,11 @@ function stopRecording() {
     console.log('[Main] 通知 AI 语音助手小窗口关闭')
     windowManager.sendTo(MiniWindowType.AI_ASSISTANT, 'ai-assistant:close', {})
   }
+
+  // 通知渲染进程业务停止（用于解锁主窗口）
+  windowManager.broadcast(IPC_CHANNELS.BUSINESS.STOP, {
+    businessMode: currentRecordingState.businessMode
+  })
 
   // 重置状态
   currentRecordingState = {

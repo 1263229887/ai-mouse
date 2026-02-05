@@ -25,3 +25,6 @@ export { useLanguageStore } from './modules/language'
 
 // AI 语音助手配置状态
 export { useAIAssistantStore } from './modules/aiAssistant'
+
+// 业务状态（互斥控制、主窗口锁定）
+export { useBusinessStore } from './modules/business'

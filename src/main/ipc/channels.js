@@ -140,5 +140,23 @@ export const IPC_CHANNELS = {
     OPEN_URL: 'app-launcher:open-url',
     // 检查应用是否安装
     CHECK_APP_INSTALLED: 'app-launcher:check-installed'
+  },
+
+  // ============ Toast 提示相关 ============
+  TOAST: {
+    // 显示 Toast 提示
+    SHOW: 'toast:show',
+    // 隐藏 Toast 提示
+    HIDE: 'toast:hide'
+  },
+
+  // ============ 业务状态相关 ============
+  BUSINESS: {
+    // 业务开始
+    START: 'business:start',
+    // 业务停止
+    STOP: 'business:stop',
+    // 业务状态变化
+    STATE_CHANGED: 'business:state-changed'
   }
 }

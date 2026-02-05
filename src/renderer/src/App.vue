@@ -12,6 +12,9 @@ const authStore = useAuthStore()
 // 小窗口不显示标题栏
 const showTitleBar = computed(() => !route.path.startsWith('/mini/'))
 
+// 小窗口需要透明背景
+const isMiniWindow = computed(() => route.path.startsWith('/mini/'))
+
 // ============ 全局设备状态管理 ============
 /**
  * 初始化设备状态
@@ -166,7 +169,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-container">
+  <div class="app-container" :class="{ 'with-bg': !isMiniWindow }">
     <!-- 全局标题栏（小窗口不显示） -->
     <TitleBar v-if="showTitleBar" />
 
@@ -192,6 +195,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   position: relative;
+
+  // 非小窗口时显示背景色
+  &.with-bg {
+    background: #0b0d0f;
+  }
 }
 
 .main-view {
