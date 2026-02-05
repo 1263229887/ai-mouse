@@ -44,6 +44,7 @@ const DEFAULT_MINI_CONFIG = {
   resizable: false, // 禁止拉伸
   minimizable: false,
   maximizable: false, // 禁止最大化
+  fullscreenable: false, // 禁止全屏
   alwaysOnTop: true, // 始终置顶
   skipTaskbar: true, // 不显示在任务栏
   frame: false, // 无边框
@@ -101,6 +102,11 @@ export function createMiniWindow(type, route, options = {}) {
     show: false
   })
 
+  // 强制禁用 resize（某些 Windows 系统上可能会忽略配置中的 resizable: false）
+  miniWindow.setResizable(false)
+  miniWindow.setMaximizable(false)
+  miniWindow.setFullScreenable(false)
+
   // 注册到窗口管理器
   windowManager.register(type, miniWindow)
 
@@ -157,15 +163,9 @@ export function createBusinessCWindow(options = {}) {
  * @returns {BrowserWindow}
  */
 export function createVoiceTranslateWindow(options = {}) {
-  // 获取屏幕工作区域高度
-  const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
-  const maxWindowHeight = Math.floor(screenHeight * 0.7) // 最高 70% 屏幕高度
-
   const win = createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
     width: 380,
     height: 420,
-    minHeight: 200,
-    maxHeight: maxWindowHeight,
     transparent: true, // 透明背景，让页面圆角可见
     hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options
@@ -216,15 +216,9 @@ export function createVoiceInputWindow(options = {}) {
  * @returns {BrowserWindow}
  */
 export function createAIAssistantWindow(options = {}) {
-  // 获取屏幕工作区域高度
-  const { height: screenHeight } = screen.getPrimaryDisplay().workAreaSize
-  const maxWindowHeight = Math.floor(screenHeight * 0.6) // 最高 60% 屏幕高度
-
   const win = createMiniWindow(MiniWindowType.AI_ASSISTANT, '/mini/ai-assistant', {
     width: 380,
     height: 360, // 初始高度
-    minHeight: 280,
-    maxHeight: maxWindowHeight,
     transparent: true, // 透明背景，让页面圆角可见
     hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options

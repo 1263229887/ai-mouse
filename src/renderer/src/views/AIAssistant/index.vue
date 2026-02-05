@@ -42,10 +42,6 @@ const userScrolledUp = ref(false) // 用户是否手动上滑了
 // 窗口高度管理
 let windowBounds = null
 
-// 延迟启动状态
-const isDelayStarting = ref(true)
-const delayCountdown = ref(2)
-
 // ============ 音频播放相关 ============
 // 采样参数
 const SAMPLE_RATE = 16000
@@ -714,20 +710,9 @@ onMounted(async () => {
     })
   }
 
-  // 延迟启动，让用户有时间打开控制台查看网络请求
-  recordingStatus.value = `${delayCountdown.value} 秒后连接...`
-
-  const countdownTimer = setInterval(() => {
-    delayCountdown.value--
-    if (delayCountdown.value > 0) {
-      recordingStatus.value = `${delayCountdown.value} 秒后连接...`
-    } else {
-      clearInterval(countdownTimer)
-      isDelayStarting.value = false
-      recordingStatus.value = '正在连接...'
-      startService()
-    }
-  }, 1000)
+  // 直接启动服务
+  recordingStatus.value = '正在连接...'
+  startService()
 })
 
 // 组件卸载时停止录音和清理监听器
@@ -755,45 +740,43 @@ const handleClose = async () => {
   }, 300)
 }
 
-// ============ 窗口拖动功能 ============
+// ============ 窗口拖动功能（使用全局事件监听，避免某些系统上的 resize 问题） ============
 const isDragging = ref(false)
-const dragOffset = ref({ x: 0, y: 0 })
+let dragStartX = 0
+let dragStartY = 0
 
 const handleMouseDown = (e) => {
   // 只有在标题栏区域才允许拖动
   if (e.target.closest('.drag-region')) {
+    e.preventDefault()
     isDragging.value = true
-    dragOffset.value.x = e.screenX
-    dragOffset.value.y = e.screenY
+    dragStartX = e.screenX
+    dragStartY = e.screenY
+    // 添加全局事件监听
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
   }
 }
 
 const handleMouseMove = (e) => {
-  if (isDragging.value) {
-    const deltaX = e.screenX - dragOffset.value.x
-    const deltaY = e.screenY - dragOffset.value.y
-
-    // 使用 Electron IPC 移动窗口
-    window.api?.window?.moveBy?.(deltaX, deltaY)
-
-    dragOffset.value.x = e.screenX
-    dragOffset.value.y = e.screenY
-  }
+  if (!isDragging.value) return
+  const deltaX = e.screenX - dragStartX
+  const deltaY = e.screenY - dragStartY
+  dragStartX = e.screenX
+  dragStartY = e.screenY
+  window.api?.window?.moveBy?.(deltaX, deltaY)
 }
 
 const handleMouseUp = () => {
   isDragging.value = false
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
 }
 </script>
 
 <template>
-  <div
-    class="w-full h-full flex flex-col overflow-hidden select-none"
-    @mousedown="handleMouseDown"
-    @mousemove="handleMouseMove"
-    @mouseup="handleMouseUp"
-    @mouseleave="handleMouseUp"
-  >
+  <div class="w-full h-full flex flex-col overflow-hidden select-none" @mousedown="handleMouseDown">
     <!-- 标题栏（顶部圆角） -->
     <div
       class="drag-region flex items-center justify-between px-16 py-12 bg-#1B2023 rd-t-12 b-b-1 b-b-solid b-b-#303030 cursor-move"

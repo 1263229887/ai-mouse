@@ -90,9 +90,19 @@ function findAppInRegistry(appName, exeName) {
       'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
     ]
 
-    // 同时搜索中文名和英文名（从 exeName 提取）
+    // 支持逗号分隔的多个 exe 名称
+    const exeNames = exeName
+      ? exeName
+          .split(',')
+          .map((n) => n.trim())
+          .filter(Boolean)
+      : []
+    console.log('[AppLauncher][Win] exe 名称列表:', exeNames)
+
+    // 同时搜索中文名和英文名（从第一个 exeName 提取）
     // 例如：appName="钉钉", exeName="DingTalk.exe" -> 搜索 "钉钉" 和 "DingTalk"
-    const englishName = exeName ? exeName.replace(/\.exe$/i, '') : ''
+    const firstExeName = exeNames[0] || ''
+    const englishName = firstExeName ? firstExeName.replace(/\.exe$/i, '') : ''
     const searchNames = [appName]
     if (englishName && englishName.toLowerCase() !== appName.toLowerCase()) {
       searchNames.push(englishName)
@@ -101,14 +111,19 @@ function findAppInRegistry(appName, exeName) {
     console.log('[AppLauncher][Win] 搜索名称:', searchNames)
 
     // 串行搜索每个名称
-    searchWithNames(registryPaths, searchNames, exeName, resolve)
+    searchWithNames(registryPaths, searchNames, exeNames, resolve)
   })
 }
 
 /**
  * 使用多个名称搜索注册表
+ * @param {string[]} registryPaths - 注册表路径列表
+ * @param {string[]} searchNames - 搜索名称列表
+ * @param {string[]} exeNames - exe 名称列表（支持多个）
+ * @param {Function} resolve - Promise resolve
+ * @param {number} index - 当前搜索索引
  */
-function searchWithNames(registryPaths, searchNames, exeName, resolve, index = 0) {
+function searchWithNames(registryPaths, searchNames, exeNames, resolve, index = 0) {
   if (index >= searchNames.length) {
     resolve(null)
     return
@@ -133,8 +148,8 @@ function searchWithNames(registryPaths, searchNames, exeName, resolve, index = 0
     console.log('[AppLauncher][Win] 搜索结果长度:', output.length)
 
     if (output && output.length >= 10) {
-      // 从输出中提取 exe 路径
-      const exePath = extractExePathFromRegistry(output, exeName)
+      // 从输出中提取 exe 路径（遍历所有 exe 名称）
+      const exePath = extractExePathFromRegistry(output, exeNames)
       if (exePath) {
         resolve(exePath)
         return
@@ -142,14 +157,16 @@ function searchWithNames(registryPaths, searchNames, exeName, resolve, index = 0
     }
 
     // 继续搜索下一个名称
-    searchWithNames(registryPaths, searchNames, exeName, resolve, index + 1)
+    searchWithNames(registryPaths, searchNames, exeNames, resolve, index + 1)
   })
 }
 
 /**
  * 从注册表查询结果中提取 exe 路径
+ * @param {string} output - 注册表查询输出
+ * @param {string[]} exeNames - exe 名称列表（支持多个）
  */
-function extractExePathFromRegistry(output, exeName) {
+function extractExePathFromRegistry(output, exeNames) {
   // 尝试从 DisplayIcon 提取路径（通常是 exe 路径）
   const displayIconMatch = output.match(/DisplayIcon\s+REG_SZ\s+([^\r\n]+)/i)
   if (displayIconMatch) {
@@ -166,44 +183,49 @@ function extractExePathFromRegistry(output, exeName) {
 
   // 尝试从 InstallLocation 提取路径
   const installLocMatch = output.match(/InstallLocation\s+REG_SZ\s+([^\r\n]+)/i)
-  if (installLocMatch && exeName) {
+  if (installLocMatch && exeNames.length > 0) {
     let installPath = installLocMatch[1].trim()
     installPath = installPath.replace(/^"|"$/g, '')
     console.log('[AppLauncher][Win] 找到 InstallLocation:', installPath)
 
-    // 在安装目录下查找 exe
-    const possiblePaths = [
-      join(installPath, exeName),
-      join(installPath, 'Bin', exeName),
-      join(installPath, 'bin', exeName)
-    ]
+    // 遍历所有 exe 名称，在安装目录下查找
+    for (const exeName of exeNames) {
+      const possiblePaths = [
+        join(installPath, exeName),
+        join(installPath, 'Bin', exeName),
+        join(installPath, 'bin', exeName)
+      ]
 
-    for (const p of possiblePaths) {
-      console.log('[AppLauncher][Win] 检查路径:', p)
-      if (existsSync(p)) {
-        return p
+      for (const p of possiblePaths) {
+        console.log('[AppLauncher][Win] 检查路径:', p)
+        if (existsSync(p)) {
+          return p
+        }
       }
     }
   }
 
   // 尝试从 UninstallString 提取路径
   const uninstallMatch = output.match(/UninstallString\s+REG_SZ\s+([^\r\n]+)/i)
-  if (uninstallMatch && exeName) {
+  if (uninstallMatch && exeNames.length > 0) {
     let uninstallPath = uninstallMatch[1].trim()
     uninstallPath = uninstallPath.replace(/^"|"$/g, '')
     // 获取目录
     const dir = dirname(uninstallPath)
     console.log('[AppLauncher][Win] 从 UninstallString 获取目录:', dir)
 
-    const possiblePaths = [
-      join(dir, exeName),
-      join(dir, '..', exeName),
-      join(dir, '..', 'Bin', exeName)
-    ]
+    // 遍历所有 exe 名称
+    for (const exeName of exeNames) {
+      const possiblePaths = [
+        join(dir, exeName),
+        join(dir, '..', exeName),
+        join(dir, '..', 'Bin', exeName)
+      ]
 
-    for (const p of possiblePaths) {
-      if (existsSync(p)) {
-        return p
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          return p
+        }
       }
     }
   }

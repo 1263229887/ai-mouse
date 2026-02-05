@@ -24,14 +24,14 @@ export const APP_CONFIG = {
   微信: {
     hasClient: true,
     webUrl: 'https://weixin.qq.com',
-    winExeName: 'WeChat.exe',
+    winExeName: 'Weixin.exe,WeChat.exe',
     macAppName: '微信.app',
     macBundleId: 'com.tencent.xinWeChat'
   },
   钉钉: {
     hasClient: true,
     webUrl: 'https://www.dingtalk.com',
-    winExeName: 'DingTalkUpdater.exe',
+    winExeName: 'DingtalkLauncher.exe,DingTalkUpdater.exe',
     macAppName: 'DingTalk.app',
     macBundleId: '5ZSL2CJU2T.com.dingtalk.mac'
   },
