@@ -40,10 +40,11 @@ export const useAIAssistantStore = defineStore('aiAssistant', () => {
   /**
    * 获取 AI 助手配置
    * 从数字人后管接口获取人设信息和支持的应用列表
+   * @param {boolean} force - 是否强制刷新，忽略加载中状态
    */
-  async function fetchConfig() {
-    // 避免重复加载
-    if (isLoading.value) {
+  async function fetchConfig(force = false) {
+    // 避免重复加载（强制刷新时跳过此检查）
+    if (isLoading.value && !force) {
       console.log('[AIAssistantStore] 正在加载中，跳过')
       return
     }

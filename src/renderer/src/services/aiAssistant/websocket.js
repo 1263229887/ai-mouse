@@ -118,18 +118,15 @@ export class AIAssistantWebSocket {
     const authStore = useAuthStore()
     const aiAssistantStore = useAIAssistantStore()
 
-    // 如果配置正在加载，简短等待（最多 500ms）
-    if (aiAssistantStore.isLoading) {
-      console.log('[AIAssistantWS] 配置加载中，简短等待...')
-      const maxWaitTime = 500
-      const checkInterval = 50
-      let waited = 0
-
-      while (aiAssistantStore.isLoading && waited < maxWaitTime) {
-        await new Promise((resolve) => setTimeout(resolve, checkInterval))
-        waited += checkInterval
-      }
+    // 【关键】每次连接前强制获取最新配置，不使用缓存
+    // 因为后管可能随时修改 enableWebSearch 等配置
+    console.log('[AIAssistantWS] 强制获取最新 AI 助手配置...')
+    try {
+      await aiAssistantStore.fetchConfig(true) // 强制刷新
+    } catch (err) {
+      console.warn('[AIAssistantWS] 获取配置失败，使用当前值:', err)
     }
+    console.log('[AIAssistantWS] 当前 enableWebSearch:', aiAssistantStore.enableWebSearch)
 
     // 获取用户信息
     const userId = authStore.userInfo?.id || ''
