@@ -7,9 +7,13 @@
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { getVoiceTranslateService } from '@/services'
+import { useDeviceStore } from '@/stores'
 
 // 使用语音翻译服务（复用WebSocket和录音逻辑）
 const voiceService = getVoiceTranslateService()
+
+// 设备 Store（获取语音输入语言配置）
+const deviceStore = useDeviceStore()
 
 // 录音状态
 const isRecording = ref(false)
@@ -262,10 +266,13 @@ onMounted(async () => {
 
     voiceService.init(recordingSource)
 
+    // 从 store 获取语音输入语言配置
+    const sourceIsoCode = deviceStore.voiceInputSource.isoCode || 'ZH'
+
     await voiceService.start({
       url: 'ws://chat.danaai.net/asr/speechTranslate',
-      sourceLanguage: 'ZH',
-      targetLanguage: 'EN',
+      sourceLanguage: sourceIsoCode,
+      // 语音输入模式不需要 targetLanguage
       openTranslate: false,
       openTts: false
     })

@@ -193,9 +193,9 @@ const handleMessage = (data) => {
     // online模式：直接拼接显示（临时文字，灰色），没有id
     originalTexts.value.online += text
   } else if (mode === 'offline') {
-    // offline模式：将online内容加到offline，然后清空online
-    originalTexts.value.offline += originalTexts.value.online + text
+    // offline模式：清空online（offline是online的最终确认版本），追加offline文字
     originalTexts.value.online = ''
+    originalTexts.value.offline += text
   } else if (mode === 'translate') {
     // translate模式：译文，按id存储
     if (id !== undefined) {

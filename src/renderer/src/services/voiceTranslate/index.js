@@ -116,9 +116,20 @@ export class VoiceTranslateService {
       this.init()
     }
 
-    const wsOptions = {
+    // 合并配置，sourceLanguage 自动同步到 language_id 和 originalCode
+    const mergedOptions = {
       ...this.translateOptions,
-      ...options,
+      ...options
+    }
+
+    // 如果传入了 sourceLanguage，同步到 language_id 和 originalCode
+    if (options.sourceLanguage) {
+      mergedOptions.language_id = options.sourceLanguage
+      mergedOptions.originalCode = options.sourceLanguage
+    }
+
+    const wsOptions = {
+      ...mergedOptions,
       onMessage: (data) => {
         if (this.onMessage) this.onMessage(data)
       },
