@@ -50,22 +50,29 @@ function openWindowsApp({ appName, winExeName }) {
       .then((exePath) => {
         if (exePath) {
           console.log('[AppLauncher][Win] 找到应用路径:', exePath)
-          // 使用 spawn 启动应用，设置 detached 让应用独立运行
-          try {
-            const child = spawn(exePath, [], {
-              detached: true,
-              stdio: 'ignore',
-              shell: false
-            })
-            // 解除父进程对子进程的引用，让子进程独立运行
-            child.unref()
-            console.log('[AppLauncher][Win] 启动成功')
-            resolve({ success: true })
-          } catch (error) {
-            console.log('[AppLauncher][Win] 启动失败:', error.message)
-            // 注册表方式启动失败，尝试开始菜单方式
-            tryStartMenuLaunch(appName, winExeName, resolve)
-          }
+          // 使用 shell.openPath 启动应用（更可靠，支持各种类型的 exe）
+          shell.openPath(exePath).then((error) => {
+            if (error) {
+              console.log('[AppLauncher][Win] shell.openPath 失败:', error)
+              // 尝试用 spawn 作为后备
+              try {
+                const child = spawn(exePath, [], {
+                  detached: true,
+                  stdio: 'ignore',
+                  shell: true // 使用 shell 模式
+                })
+                child.unref()
+                console.log('[AppLauncher][Win] spawn 启动成功')
+                resolve({ success: true })
+              } catch (spawnError) {
+                console.log('[AppLauncher][Win] spawn 也失败:', spawnError.message)
+                tryStartMenuLaunch(appName, winExeName, resolve)
+              }
+            } else {
+              console.log('[AppLauncher][Win] shell.openPath 启动成功')
+              resolve({ success: true })
+            }
+          })
         } else {
           console.log('[AppLauncher][Win] 注册表未找到，尝试开始菜单方式')
           // 方式2：通过开始菜单应用列表查找
@@ -305,65 +312,81 @@ function searchWithNames(registryPaths, searchNames, exeNames, resolve, index = 
   }
 
   const searchName = searchNames[index]
-  const searchCmd = `reg query "${registryPaths[0]}" /s /f "${searchName}" 2>nul & reg query "${registryPaths[1]}" /s /f "${searchName}" 2>nul & reg query "${registryPaths[2]}" /s /f "${searchName}" 2>nul`
 
-  console.log('[AppLauncher][Win] 执行注册表搜索:', searchName)
-
-  exec(searchCmd, { timeout: 15000, encoding: 'buffer' }, (error, stdout) => {
-    // 将 buffer 转换为字符串，处理中文编码
-    let output = ''
-    try {
-      // 尝试 GBK 编码
-      const iconv = require('iconv-lite')
-      output = iconv.decode(stdout, 'cp936')
-    } catch {
-      // 如果没有 iconv-lite，使用默认编码
-      output = stdout ? stdout.toString() : ''
+  // 使用 PowerShell 查询注册表，避免中文编码问题
+  // 搜索所有 Uninstall 子项，找到包含搜索名称的条目
+  const psScript = `
+    $ErrorActionPreference = 'SilentlyContinue'
+    $paths = @(
+      'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+      'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+      'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'
+    )
+    $searchName = '${searchName.replace(/'/g, "''")}'
+    foreach ($path in $paths) {
+      Get-ItemProperty $path | Where-Object { 
+        $_.DisplayName -like "*$searchName*" -or $_.PSChildName -like "*$searchName*"
+      } | Select-Object DisplayName, DisplayIcon, InstallLocation, UninstallString | ConvertTo-Json -Compress
     }
-    console.log('[AppLauncher][Win] 搜索结果长度:', output.length)
+  `.replace(/\n/g, ' ')
 
-    if (output && output.length >= 10) {
-      // 从输出中提取 exe 路径（遍历所有 exe 名称）
-      const exePath = extractExePathFromRegistry(output, exeNames)
-      if (exePath) {
-        resolve(exePath)
-        return
+  console.log('[AppLauncher][Win] 执行 PowerShell 注册表搜索:', searchName)
+
+  exec(
+    `powershell -Command "${psScript}"`,
+    { timeout: 15000, encoding: 'utf8' },
+    (error, stdout) => {
+      console.log('[AppLauncher][Win] PowerShell 搜索结果长度:', stdout?.length || 0)
+
+      if (stdout && stdout.length > 10) {
+        // 可能返回多个 JSON 对象，尝试解析
+        const results = []
+        const jsonMatches = stdout.match(/\{[^{}]+\}/g) || []
+        for (const jsonStr of jsonMatches) {
+          try {
+            results.push(JSON.parse(jsonStr))
+          } catch {
+            // 忽略解析失败的
+          }
+        }
+
+        console.log('[AppLauncher][Win] 找到注册表条目数:', results.length)
+
+        // 从结果中提取 exe 路径
+        for (const item of results) {
+          const exePath = extractExePathFromRegistryItem(item, exeNames)
+          if (exePath) {
+            resolve(exePath)
+            return
+          }
+        }
       }
-    }
 
-    // 继续搜索下一个名称
-    searchWithNames(registryPaths, searchNames, exeNames, resolve, index + 1)
-  })
+      // 继续搜索下一个名称
+      searchWithNames(registryPaths, searchNames, exeNames, resolve, index + 1)
+    }
+  )
 }
 
 /**
- * 从注册表查询结果中提取 exe 路径
- * @param {string} output - 注册表查询输出
- * @param {string[]} exeNames - exe 名称列表（支持多个）
+ * 从单个注册表条目中提取 exe 路径
  */
-function extractExePathFromRegistry(output, exeNames) {
-  // 尝试从 DisplayIcon 提取路径（通常是 exe 路径）
-  const displayIconMatch = output.match(/DisplayIcon\s+REG_SZ\s+([^\r\n]+)/i)
-  if (displayIconMatch) {
-    let iconPath = displayIconMatch[1].trim()
-    // 移除可能的图标索引 ",0"
-    iconPath = iconPath.replace(/,\d+$/, '')
-    // 移除引号
-    iconPath = iconPath.replace(/^"|"$/g, '')
-    console.log('[AppLauncher][Win] 找到 DisplayIcon:', iconPath)
+function extractExePathFromRegistryItem(item, exeNames) {
+  // 尝试从 DisplayIcon 提取
+  if (item.DisplayIcon) {
+    let iconPath = item.DisplayIcon.replace(/,\d+$/, '').replace(/^"|"$/g, '')
+    console.log('[AppLauncher][Win] 检查 DisplayIcon:', iconPath)
 
-    // 检查 DisplayIcon 是否就是我们要找的 exe
     if (iconPath.toLowerCase().endsWith('.exe') && existsSync(iconPath)) {
       const iconExeName = basename(iconPath)
       // 如果是目标 exe 之一，直接返回
       if (exeNames.some((name) => name.toLowerCase() === iconExeName.toLowerCase())) {
         return iconPath
       }
-      // 否则从 DisplayIcon 的目录下找目标 exe
+      // 否则在同目录下查找目标 exe
       const iconDir = dirname(iconPath)
       for (const exeName of exeNames) {
         const possiblePath = join(iconDir, exeName)
-        console.log('[AppLauncher][Win] 检查 DisplayIcon 目录:', possiblePath)
         if (existsSync(possiblePath)) {
           return possiblePath
         }
@@ -371,23 +394,18 @@ function extractExePathFromRegistry(output, exeNames) {
     }
   }
 
-  // 尝试从 InstallLocation 提取路径
-  const installLocMatch = output.match(/InstallLocation\s+REG_SZ\s+([^\r\n]+)/i)
-  if (installLocMatch && exeNames.length > 0) {
-    let installPath = installLocMatch[1].trim()
-    installPath = installPath.replace(/^"|"$/g, '')
-    console.log('[AppLauncher][Win] 找到 InstallLocation:', installPath)
+  // 尝试从 InstallLocation 提取
+  if (item.InstallLocation && exeNames.length > 0) {
+    const installPath = item.InstallLocation.replace(/^"|"$/g, '')
+    console.log('[AppLauncher][Win] 检查 InstallLocation:', installPath)
 
-    // 遍历所有 exe 名称，在安装目录下查找
     for (const exeName of exeNames) {
       const possiblePaths = [
         join(installPath, exeName),
         join(installPath, 'Bin', exeName),
         join(installPath, 'bin', exeName)
       ]
-
       for (const p of possiblePaths) {
-        console.log('[AppLauncher][Win] 检查路径:', p)
         if (existsSync(p)) {
           return p
         }
@@ -395,23 +413,18 @@ function extractExePathFromRegistry(output, exeNames) {
     }
   }
 
-  // 尝试从 UninstallString 提取路径
-  const uninstallMatch = output.match(/UninstallString\s+REG_SZ\s+([^\r\n]+)/i)
-  if (uninstallMatch && exeNames.length > 0) {
-    let uninstallPath = uninstallMatch[1].trim()
-    uninstallPath = uninstallPath.replace(/^"|"$/g, '')
-    // 获取目录
+  // 尝试从 UninstallString 提取目录
+  if (item.UninstallString && exeNames.length > 0) {
+    let uninstallPath = item.UninstallString.replace(/^"|"$/g, '')
     const dir = dirname(uninstallPath)
-    console.log('[AppLauncher][Win] 从 UninstallString 获取目录:', dir)
+    console.log('[AppLauncher][Win] 检查 UninstallString 目录:', dir)
 
-    // 遍历所有 exe 名称
     for (const exeName of exeNames) {
       const possiblePaths = [
         join(dir, exeName),
         join(dir, '..', exeName),
         join(dir, '..', 'Bin', exeName)
       ]
-
       for (const p of possiblePaths) {
         if (existsSync(p)) {
           return p

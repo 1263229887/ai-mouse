@@ -24,7 +24,7 @@ export const APP_CONFIG = {
   微信: {
     hasClient: true,
     webUrl: 'https://weixin.qq.com',
-    winExeName: 'WeChat.exe,Weixin.exe',
+    winExeName: 'Weixin.exe,WeChat.exe',
     macAppName: '微信.app',
     macBundleId: 'com.tencent.xinWeChat'
   },
