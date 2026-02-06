@@ -43,18 +43,19 @@ function isActive(path) {
 <style lang="scss" scoped>
 .app-navbar {
   width: 100%;
-  height: clamp(2.5rem, 4vh, 3rem); // 40px 左右高度
+  user-select: none;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 clamp(1.5rem, 3vw, 2rem); // 左右内边距
+  padding: 0 70px;
   box-sizing: border-box;
 }
 
 .menu-items {
   display: flex;
   align-items: center;
-  gap: clamp(2rem, 6vw, 3rem); // 菜单项间隔
+  gap: 48px;
 }
 
 .menu-item {
@@ -64,8 +65,7 @@ function isActive(path) {
     BlinkMacSystemFont,
     sans-serif;
   font-weight: 500;
-  font-size: clamp(0.7rem, 1.5vw, 0.9rem); // 响应式字体大小
-  color: var(--text-primary); // 使用主题颜色
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
 
@@ -77,8 +77,10 @@ function isActive(path) {
     background: linear-gradient(180deg, #8be6b0 31.25%, #27acc2 71.88%);
     -webkit-background-clip: text;
     background-clip: text;
+    font-size: 14px;
+    font-weight: 700;
     -webkit-text-fill-color: transparent;
-    transition: all 0.5s ease-in-out;
+    // transition: all 0.5s ease-in-out;
   }
 }
 </style>
