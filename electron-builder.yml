@@ -19,9 +19,14 @@ extraResources:
     to: resources/
     filter:
       - "**/*"
+      - "!*.exe"  # 排除 exe 文件，由各平台单独配置
 win:
   executableName: ai-mouse
   icon: build/icon.ico
+  # Windows 专用资源（AppLauncher.exe）
+  extraResources:
+    - from: resources/AppLauncher.exe
+      to: resources/AppLauncher.exe
   # Windows 打包目标: nsis(安装包) + zip(绿色便携版)
   target:
     - target: nsis

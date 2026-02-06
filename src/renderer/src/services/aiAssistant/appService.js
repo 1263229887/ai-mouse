@@ -52,9 +52,10 @@ export async function handleOpenApp(data) {
     console.log('[AppService] IPC 返回结果:', result)
 
     if (result?.success) {
+      // 优先使用 IPC 返回的 message（支持缓存命中/首次启动等不同提示）
       return {
         success: true,
-        message: appMapping.successPrompt || '好的'
+        message: result.message || appMapping.successPrompt || '好的'
       }
     } else {
       // 打开失败，使用接口返回的异常提示
