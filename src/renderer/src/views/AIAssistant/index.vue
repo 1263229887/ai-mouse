@@ -39,9 +39,6 @@ const isMuted = ref(false)
 // 智能滚动控制
 const userScrolledUp = ref(false) // 用户是否手动上滑了
 
-// 窗口高度管理
-let windowBounds = null
-
 // ============ 音频播放相关 ============
 // 采样参数
 const SAMPLE_RATE = 16000
@@ -443,45 +440,11 @@ const handleScroll = () => {
   }
 }
 
-// 动态调整窗口高度
-const adjustWindowHeight = async () => {
-  if (!messagesContainer.value) return
-
-  // 获取窗口信息
-  if (!windowBounds) {
-    windowBounds = await window.api?.window?.getBounds?.()
-    if (!windowBounds) {
-      console.log('[AI语音助手] 无法获取窗口信息')
-      return
-    }
-    console.log('[AI语音助手] 窗口信息:', windowBounds)
-  }
-
-  // 计算消息容器的实际内容高度
-  const messagesScrollHeight = messagesContainer.value.scrollHeight
-  const messagesClientHeight = messagesContainer.value.clientHeight
-
-  // 如果内容超出可见区域，需要增加窗口高度
-  if (messagesScrollHeight > messagesClientHeight) {
-    // 计算需要增加的高度
-    const extraHeight = messagesScrollHeight - messagesClientHeight
-    const targetHeight = Math.min(windowBounds.height + extraHeight + 20, windowBounds.maxHeight)
-
-    // 只有需要增加高度时才调整
-    if (targetHeight > windowBounds.height) {
-      console.log(`[AI语音助手] 调整窗口高度: ${windowBounds.height} -> ${targetHeight}`)
-      window.api?.window?.setHeight?.(targetHeight, true)
-      windowBounds.height = targetHeight
-    }
-  }
-}
-
-// 监听消息变化，自动调整窗口高度并滚动到底部
+// 监听消息变化，自动滚动到底部
 watch(
   [chatMessages, currentUserText, currentAIText],
   () => {
     nextTick(() => {
-      adjustWindowHeight()
       scrollToBottom()
     })
   },

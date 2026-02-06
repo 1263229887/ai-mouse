@@ -165,7 +165,7 @@ export function createBusinessCWindow(options = {}) {
 export function createVoiceTranslateWindow(options = {}) {
   const win = createMiniWindow(MiniWindowType.VOICE_TRANSLATE, '/mini/voice-translate', {
     width: 380,
-    height: 420,
+    height: 600, // 固定高度600
     transparent: true, // 透明背景，让页面圆角可见
     hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options
@@ -218,7 +218,7 @@ export function createVoiceInputWindow(options = {}) {
 export function createAIAssistantWindow(options = {}) {
   const win = createMiniWindow(MiniWindowType.AI_ASSISTANT, '/mini/ai-assistant', {
     width: 380,
-    height: 360, // 初始高度
+    height: 600, // 固定高度600
     transparent: true, // 透明背景，让页面圆角可见
     hasShadow: false, // 移除窗口阴影，避免方形阴影
     ...options
